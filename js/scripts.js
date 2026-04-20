@@ -1,9 +1,70 @@
 // --- CONFIGURACIÓN Y ESTADO ---
 const MASTER_KEY = "14042024";
-let isAdmin = false;
+let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+
+// --- CONFIGURACIÓN FIREBASE ---
+// REEMPLAZA ESTOS DATOS CON LOS DE TU PROYECTO FIREBASE
+const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "TU_SENDER_ID",
+    appId: "TU_APP_ID"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
 
 // --- ELEMENTOS COMUNES ---
 const adminTrigger = document.getElementById('admin-trigger');
+const mobileMenu = document.getElementById('mobile-menu');
+const navLinks = document.querySelector('.nav-links');
+
+// Lógica de Menú Responsive
+if (mobileMenu) {
+    mobileMenu.addEventListener('click', () => {
+        mobileMenu.classList.toggle('active');
+        navLinks.classList.toggle('active');
+    });
+
+    // Cerrar menú al hacer clic en un link
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.addEventListener('click', () => {
+            mobileMenu.classList.remove('active');
+            navLinks.classList.remove('active');
+        });
+    });
+}
+
+// --- FUNCIONES DE BASE DE DATOS (FIREBASE) ---
+async function fbGet(path, defaultValue = null) {
+    try {
+        const snapshot = await database.ref(path).once('value');
+        return snapshot.exists() ? snapshot.val() : defaultValue;
+    } catch (e) {
+        console.error("Error al leer de Firebase:", e);
+        return defaultValue;
+    }
+}
+
+async function fbSet(path, value) {
+    try {
+        await database.ref(path).set(value);
+    } catch (e) {
+        console.error("Error al guardar en Firebase:", e);
+        alert("Error al guardar los cambios.");
+    }
+}
+
+// Suscribirse a cambios en tiempo real (opcional para algunas partes)
+function fbOn(path, callback) {
+    database.ref(path).on('value', (snapshot) => {
+        callback(snapshot.val());
+    });
+}
 
 // --- PÁGINA DE INICIO (INDEX.HTML) ---
 const homePage = document.getElementById('home-page');
@@ -32,90 +93,7 @@ let selectedDateKey = "";
 
 // --- PÁGINA DE MENSAJES (MENSAJES.HTML) ---
 const stickersContainer = document.getElementById('stickers-container');
-let stickers = JSON.parse(localStorage.getItem('stickers') || '[]');
-
-// --- BASE DE DATOS INDEXEDDB V3 (BLOBS PARA MÁXIMA EFICIENCIA) ---
-const DB_NAME = 'ParaTiDB_V3';
-const DB_VERSION = 1;
-const STORE_DATA = 'data';
-const STORE_PHOTOS = 'photos';
-
-function openDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_DATA)) db.createObjectStore(STORE_DATA);
-            if (!db.objectStoreNames.contains(STORE_PHOTOS)) db.createObjectStore(STORE_PHOTOS, { keyPath: 'id' });
-        };
-        request.onsuccess = (e) => resolve(e.target.result);
-        request.onerror = (e) => reject(e.target.error);
-    });
-}
-
-async function dbGet(storeName, key, defaultValue = null) {
-    try {
-        const db = await openDB();
-        return new Promise((resolve) => {
-            const transaction = db.transaction(storeName, 'readonly');
-            const store = transaction.objectStore(storeName);
-            const request = store.get(key);
-            request.onsuccess = () => resolve(request.result || defaultValue);
-            request.onerror = () => resolve(defaultValue);
-        });
-    } catch (e) { return defaultValue; }
-}
-
-async function dbSet(storeName, key, value) {
-    try {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(storeName, 'readwrite');
-            const store = transaction.objectStore(storeName);
-            const request = store.put(value, key);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-    } catch (e) { console.error(e); }
-}
-
-async function dbAddPhoto(photoObj) {
-    try {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_PHOTOS, 'readwrite');
-            const store = transaction.objectStore(STORE_PHOTOS);
-            const request = store.add(photoObj);
-            request.onsuccess = () => resolve();
-            request.onerror = (e) => reject(e.target.error);
-        });
-    } catch (e) { throw e; }
-}
-
-async function dbGetAllPhotos() {
-    try {
-        const db = await openDB();
-        return new Promise((resolve) => {
-            const transaction = db.transaction(STORE_PHOTOS, 'readonly');
-            const store = transaction.objectStore(STORE_PHOTOS);
-            const request = store.getAll();
-            request.onsuccess = () => resolve(request.result.sort((a,b) => b.id - a.id));
-            request.onerror = () => resolve([]);
-        });
-    } catch (e) { return []; }
-}
-
-async function dbDeletePhoto(id) {
-    try {
-        const db = await openDB();
-        return new Promise((resolve) => {
-            const transaction = db.transaction(STORE_PHOTOS, 'readwrite');
-            const store = transaction.objectStore(STORE_PHOTOS);
-            const request = store.delete(id);
-            request.onsuccess = () => resolve();
-        });
-    } catch (e) { console.error(e); }
-}
+let stickers = [];
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
@@ -131,14 +109,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 // --- SISTEMA DE AUDITORÍA (LOGS) ---
 function logVisit() {
     try {
-        const logs = JSON.parse(localStorage.getItem('visit-logs') || '[]');
-        logs.unshift({ date: new Date().toLocaleString(), ua: navigator.userAgent });
-        if (logs.length > 20) logs.pop();
-        localStorage.setItem('visit-logs', JSON.stringify(logs));
+        const logData = { date: new Date().toLocaleString(), ua: navigator.userAgent };
+        database.ref('visit-logs').push(logData);
     } catch(e) {}
 }
 
-function renderAdminLogs() {
+async function renderAdminLogs() {
     let logsContainer = document.getElementById('admin-logs-view');
     if (!logsContainer && homePage) {
         logsContainer = document.createElement('div');
@@ -147,7 +123,10 @@ function renderAdminLogs() {
         homePage.appendChild(logsContainer);
     }
     if (!logsContainer) return;
-    const logs = JSON.parse(localStorage.getItem('visit-logs') || '[]');
+    
+    const logsObj = await fbGet('visit-logs', {});
+    const logs = Object.values(logsObj).reverse().slice(0, 30);
+
     let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs</h2></div>
                 <div class="logs-card">
                     <div class="logs-table-wrapper">
@@ -155,7 +134,7 @@ function renderAdminLogs() {
     logs.forEach(log => { html += `<tr><td>${log.date}</td><td class="ua-text">${log.ua}</td></tr>`; });
     html += `</tbody></table>
                     </div>
-                    <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){localStorage.clear(); location.reload();}" style="margin-top:20px">Resetear Todo</button>
+                    <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){database.ref('/').remove(); location.reload();}" style="margin-top:20px">Resetear Todo</button>
                 </div>`;
     logsContainer.innerHTML = html;
     document.getElementById('btn-back-home').onclick = () => toggleAdminView(false);
@@ -177,9 +156,18 @@ function toggleAdminView(show) {
 
 if (adminTrigger) {
     adminTrigger.addEventListener('dblclick', () => {
+        if (isAdmin) {
+            if(confirm("¿Cerrar modo admin?")) {
+                isAdmin = false;
+                sessionStorage.removeItem('isAdmin');
+                location.reload();
+            }
+            return;
+        }
         const pass = prompt("Llave:");
         if (pass === MASTER_KEY) {
             isAdmin = true;
+            sessionStorage.setItem('isAdmin', 'true');
             alert("Modo admin ❤️");
             checkAdminUI();
             initCalendar();
@@ -193,18 +181,27 @@ function checkAdminUI() {
     const elms = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo');
     elms.forEach(el => isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden'));
     if (editableLetter) editableLetter.contentEditable = isAdmin;
+    
+    if (isAdmin) {
+        const btnLogs = document.getElementById('btn-show-logs');
+        if (btnLogs) btnLogs.onclick = (e) => { e.preventDefault(); toggleAdminView(true); };
+    }
 }
 
-function loadLetter() {
+async function loadLetter() {
     if (editableLetter) {
-        const s = localStorage.getItem('romantic-letter');
+        const s = await fbGet('romantic-letter');
         if (s) editableLetter.innerHTML = s;
     }
 }
 
 if (btnEdit && btnSave) {
     btnEdit.onclick = () => { editableLetter.focus(); btnEdit.classList.add('hidden'); btnSave.classList.remove('hidden'); };
-    btnSave.onclick = () => { localStorage.setItem('romantic-letter', editableLetter.innerHTML); btnEdit.classList.remove('hidden'); btnSave.classList.add('hidden'); alert("Guardado"); };
+    btnSave.onclick = async () => { 
+        await fbSet('romantic-letter', editableLetter.innerHTML); 
+        btnEdit.classList.remove('hidden'); btnSave.classList.add('hidden'); 
+        alert("Guardado en todos los dispositivos ❤️"); 
+    };
 }
 
 // --- CALENDARIO ---
@@ -214,22 +211,39 @@ async function initCalendar() {
     const now = new Date(), today = now.getDate();
     const isCurrent = (now.getFullYear() === year && now.getMonth() === month);
     const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
     document.getElementById('current-month-year').innerText = `${months[month]} ${year}`;
-    calendarGrid.innerHTML = '';
-    ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => { const dv = document.createElement('div'); dv.className = 'calendar-day-head'; dv.innerText = d; calendarGrid.appendChild(dv); });
+    
+    const fragment = document.createDocumentFragment();
+    ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => { 
+        const dv = document.createElement('div'); dv.className = 'calendar-day-head'; dv.innerText = d; fragment.appendChild(dv); 
+    });
+    
     const first = new Date(year, month, 1).getDay();
     let offset = first === 0 ? 6 : first - 1;
-    for (let i = 0; i < offset; i++) { const dv = document.createElement('div'); dv.className = 'calendar-day empty'; calendarGrid.appendChild(dv); }
-    for (let d = 1; d <= new Date(year, month+1, 0).getDate(); d++) {
-        const dv = document.createElement('div'); dv.className = 'calendar-day';
+    for (let i = 0; i < offset; i++) { 
+        const dv = document.createElement('div'); dv.className = 'calendar-day empty'; fragment.appendChild(dv); 
+    }
+    
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const allNotes = await fbGet('calendar-notes', {});
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dv = document.createElement('div'); 
+        dv.className = 'calendar-day';
         const key = `${year}-${month+1}-${d}`;
         if (isCurrent && d === today) dv.classList.add('today');
-        const data = await dbGet(STORE_DATA, `note-${key}`);
-        if (data) dv.classList.add('has-note');
-        dv.innerText = d; dv.onclick = () => openNote(d, key);
-        calendarGrid.appendChild(dv);
+        if (allNotes[`note-${key}`]) dv.classList.add('has-note');
+        dv.innerText = d; 
+        dv.onclick = () => openNote(d, key);
+        fragment.appendChild(dv);
     }
+    
+    calendarGrid.innerHTML = '';
+    calendarGrid.appendChild(fragment);
+    
     if (daysCountDisplay) daysCountDisplay.innerText = Math.floor((now - new Date('2023-12-22'))/86400000);
+    
     prevMonthBtn.onclick = () => { currentViewDate.setMonth(currentViewDate.getMonth()-1); initCalendar(); };
     nextMonthBtn.onclick = () => { currentViewDate.setMonth(currentViewDate.getMonth()+1); initCalendar(); };
 }
@@ -237,20 +251,27 @@ async function initCalendar() {
 async function openNote(day, key) {
     selectedDateKey = key;
     document.getElementById('modal-date').innerText = `Día ${day}`;
-    const data = await dbGet(STORE_DATA, `note-${key}`, {});
+    
     const vImg = document.getElementById('view-img'), vMsg = document.getElementById('view-msg');
+    vImg.src = ""; vImg.style.display = 'none';
+    vMsg.innerText = "Cargando...";
+    
+    const data = await fbGet(`calendar-notes/note-${key}`, {});
+    
     vImg.src = data.photo || ""; vImg.style.display = data.photo ? 'block' : 'none';
     vMsg.innerText = data.message || (isAdmin ? "Escribe algo..." : "Sin detalles.");
+    
     renderRatingDisplay(document.getElementById('view-red-rating'), 'red', data.redRating || 0, key);
     renderRatingDisplay(document.getElementById('view-black-rating'), 'black', data.blackRating || 0, key);
+    
     if (isAdmin) {
-        notePhotoUrlInput.value = data.photo || ""; noteMessageInput.value = data.message || "";
+        notePhotoUrlInput.value = data.photo || ""; 
+        noteMessageInput.value = data.message || "";
         document.getElementById('note-red-rating').value = data.redRating || 0;
         document.getElementById('note-black-rating').value = data.blackRating || 0;
         updateStarsVisual(document.querySelector('.red-stars'), data.redRating || 0);
         updateStarsVisual(document.querySelector('.black-stars'), data.blackRating || 0);
 
-        // Añadir eventos a las estrellas para edición
         document.querySelectorAll('.star-rating span').forEach(s => {
             s.onclick = () => {
                 const val = parseInt(s.dataset.value);
@@ -267,19 +288,31 @@ async function openNote(day, key) {
 function updateStarsVisual(container, val) {
     if (!container) return;
     container.querySelectorAll('span').forEach(s => {
-        s.style.opacity = parseInt(s.dataset.value) <= val ? '1' : '0.2';
+        s.style.opacity = parseInt(s.dataset.value) <= val ? '1' : '0.3';
     });
 }
 
 function renderRatingDisplay(container, type, val, key) {
     container.innerHTML = '';
     for (let i = 1; i <= 5; i++) {
-        const s = document.createElement('span'); s.innerText = type === 'red' ? '❤️' : '🖤';
-        s.style.opacity = i <= val ? '1' : '0.2'; s.style.fontSize = '1.8rem';
-        if (i > val) s.onclick = async () => {
-            const data = await dbGet(STORE_DATA, `note-${key}`, {});
-            if (type === 'red') { data.redRating = i; throwHeart(); } else { data.blackRating = i; }
-            await dbSet(STORE_DATA, `note-${key}`, data); openNote(key.split('-')[2], key); initCalendar();
+        const s = document.createElement('span'); 
+        s.innerText = type === 'red' ? '❤️' : '🖤';
+        s.style.opacity = i <= val ? '1' : '0.2'; 
+        s.style.fontSize = '1.8rem';
+        s.style.cursor = 'pointer';
+        
+        s.onclick = async () => {
+            if (isAdmin) {
+                document.getElementById(`note-${type}-rating`).value = i;
+                updateStarsVisual(document.querySelector(`.${type}-stars`), i);
+                renderRatingDisplay(container, type, i, key);
+            } else if (i > val) {
+                const data = await fbGet(`calendar-notes/note-${key}`, {});
+                if (type === 'red') { data.redRating = i; throwHeart(); } else { data.blackRating = i; }
+                await fbSet(`calendar-notes/note-${key}`, data); 
+                openNote(key.split('-')[2], key); 
+                initCalendar();
+            }
         };
         container.appendChild(s);
     }
@@ -288,8 +321,23 @@ function renderRatingDisplay(container, type, val, key) {
 if (btnSaveNote) {
     btnSaveNote.onclick = async () => {
         if (!isAdmin) return;
-        const data = { photo: notePhotoUrlInput.value, message: noteMessageInput.value, redRating: document.getElementById('note-red-rating').value, blackRating: document.getElementById('note-black-rating').value };
-        await dbSet(STORE_DATA, `note-${selectedDateKey}`, data); noteModal.classList.add('hidden'); initCalendar();
+        btnSaveNote.innerText = "Guardando...";
+        btnSaveNote.disabled = true;
+        
+        const data = { 
+            photo: notePhotoUrlInput.value, 
+            message: noteMessageInput.value, 
+            redRating: parseInt(document.getElementById('note-red-rating').value) || 0, 
+            blackRating: parseInt(document.getElementById('note-black-rating').value) || 0 
+        };
+        
+        await fbSet(`calendar-notes/note-${selectedDateKey}`, data); 
+        
+        btnSaveNote.innerText = "Guardar Detalle";
+        btnSaveNote.disabled = false;
+        noteModal.classList.add('hidden'); 
+        initCalendar();
+        alert("¡Guardado correctamente! ❤️");
     };
 }
 if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
@@ -302,11 +350,11 @@ function compressImage(file, callback) {
         const img = new Image(); img.src = e.target.result;
         img.onload = () => {
             const canvas = document.createElement('canvas');
-            const MAX = 800; let w = img.width, h = img.height;
+            const MAX = 600; let w = img.width, h = img.height;
             if (w > h) { if(w > MAX) { h *= MAX/w; w = MAX; } } else { if(h > MAX) { w *= MAX/h; h = MAX; } }
             canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            callback(canvas.toDataURL('image/jpeg', 0.6));
+            callback(canvas.toDataURL('image/jpeg', 0.5));
         };
     };
 }
@@ -319,8 +367,6 @@ function handleFile(file, zone, targetInput) {
         prev.src = b64; prev.style.maxHeight = "100px"; prev.style.borderRadius = "10px";
         if (!zone.querySelector('img')) zone.appendChild(prev);
         p.style.display = "none";
-        const btn = document.getElementById('btn-save-gallery-photo');
-        if (btn) btn.classList.remove('hidden');
     });
 }
 
@@ -330,107 +376,119 @@ if (dropZone && fileInput) {
 }
 
 // --- CORAZONES Y STICKERS ---
-function initHearts() {
+async function initHearts() {
     if (!redHeartsGrid) return;
-    const rState = JSON.parse(localStorage.getItem('red-hearts-state') || '[]');
-    const bState = JSON.parse(localStorage.getItem('black-hearts-state') || '[]');
-    renderHearts(redHeartsGrid, 'red', rState); renderHearts(blackHeartsGrid, 'black', bState);
+    const rState = await fbGet('red-hearts', []);
+    const bState = await fbGet('black-hearts', []);
+    renderHearts(redHeartsGrid, 'red', rState); 
+    renderHearts(blackHeartsGrid, 'black', bState);
 }
+
 function renderHearts(container, type, state) {
     container.innerHTML = '';
+    const stateArr = Array.isArray(state) ? state : Object.values(state || {});
     for (let i = 0; i < 40; i++) {
-        const h = document.createElement('div'); h.className = `heart-item ${state.includes(i) ? 'marked' : 'unmarked'}`;
+        const h = document.createElement('div'); 
+        h.className = `heart-item ${stateArr.includes(i) ? 'marked' : 'unmarked'}`;
         h.innerHTML = type === 'red' ? '❤️' : '🖤';
-        h.onclick = () => {
-            if (state.includes(i)) return; state.push(i); h.className = 'heart-item marked';
-            if (type === 'red') throwHeart(); localStorage.setItem(`${type}-hearts-state`, JSON.stringify(state));
+        h.onclick = async () => {
+            if (stateArr.includes(i)) return; 
+            stateArr.push(i); 
+            h.className = 'heart-item marked';
+            if (type === 'red') throwHeart(); 
+            await fbSet(`${type}-hearts`, stateArr);
         };
         container.appendChild(h);
     }
 }
+
 function throwHeart() {
     const h = document.createElement('div'); h.className = 'thrown-heart'; h.innerText = '❤️'; document.body.appendChild(h);
     h.style.left = Math.random()*window.innerWidth+'px'; h.style.top = (Math.random()>0.5?-50:window.innerHeight+50)+'px';
     setTimeout(() => { h.style.left='50%'; h.style.top='50%'; h.style.opacity='0'; }, 100); setTimeout(() => h.remove(), 1200);
 }
-function initStickers() {
+
+async function initStickers() {
     if (!stickersContainer) return;
-    stickersContainer.innerHTML = '<div class="sticker-instruction">Doble clic para añadir ✨</div>';
-    stickers.forEach((s, i) => renderSticker(s, i));
-    stickersContainer.ondblclick = (e) => {
+    fbOn('stickers', (data) => {
+        stickers = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
+        renderStickersList();
+    });
+    
+    stickersContainer.ondblclick = async (e) => {
         if (e.target !== stickersContainer) return;
         const text = prompt("Mensaje:");
         if (text) {
             const s = { text, x: e.clientX-100, y: e.clientY-75, color: ['','pink','blue','green'][Math.floor(Math.random()*4)] };
-            stickers.push(s); localStorage.setItem('stickers', JSON.stringify(stickers)); renderSticker(s, stickers.length-1);
+            stickers.push(s); 
+            await fbSet('stickers', stickers);
         }
     };
     checkAdminUI();
 }
+
+function renderStickersList() {
+    const instr = document.getElementById('sticker-instruction');
+    stickersContainer.innerHTML = '';
+    if (instr) stickersContainer.appendChild(instr);
+    stickers.forEach((s, i) => renderSticker(s, i));
+    checkAdminUI();
+}
+
 function renderSticker(data, index) {
     const div = document.createElement('div'); div.className = `sticker ${data.color}`; div.style.left = data.x+'px'; div.style.top = data.y+'px'; div.innerText = data.text;
     const del = document.createElement('button'); del.className = 'delete-sticker hidden'; del.innerHTML = '×';
-    del.onclick = (e) => { e.stopPropagation(); if (!isAdmin) return; stickers.splice(index, 1); localStorage.setItem('stickers', JSON.stringify(stickers)); initStickers(); };
+    del.onclick = async (e) => { e.stopPropagation(); if (!isAdmin) return; stickers.splice(index, 1); await fbSet('stickers', stickers); };
     div.appendChild(del);
     let isDrag = false, ox, oy;
     div.onmousedown = (e) => { if(e.target===del) return; isDrag=true; ox=e.clientX-div.offsetLeft; oy=e.clientY-div.offsetTop; div.style.zIndex=1000; };
     window.onmousemove = (e) => { if(isDrag) { data.x=e.clientX-ox; data.y=e.clientY-oy; div.style.left=data.x+'px'; div.style.top=data.y+'px'; } };
-    window.onmouseup = () => { if(isDrag) { isDrag=false; div.style.zIndex=10; localStorage.setItem('stickers', JSON.stringify(stickers)); } };
+    window.onmouseup = async () => { if(isDrag) { isDrag=false; div.style.zIndex=10; await fbSet('stickers', stickers); } };
     stickersContainer.appendChild(div);
 }
 
-// --- GALERÍA V3 (CON SUBIDA MÚLTIPLE) ---
-function initGallery() {
+// --- GALERÍA ---
+async function initGallery() {
     const gZone = document.getElementById('gallery-drop-zone'), gFile = document.getElementById('gallery-file-input');
     const lb = document.getElementById('lightbox'), lbc = document.getElementById('close-lightbox');
     
-    if (document.getElementById('gallery-grid')) renderGallery();
+    fbOn('gallery', () => renderGallery());
     
     if (gZone) gZone.onclick = () => gFile.click();
-    
     if (gFile) {
         gFile.onchange = async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
-            
             const p = gZone.querySelector('p');
-            const originalText = p.innerText;
             let uploadedCount = 0;
-
             for (const file of files) {
-                p.innerText = `Subiendo ${uploadedCount + 1} de ${files.length}... ⏳`;
-                try {
-                    const b64 = await new Promise((resolve) => compressImage(file, resolve));
-                    await dbAddPhoto({ id: Date.now() + uploadedCount, url: b64 });
-                    uploadedCount++;
-                } catch (err) {
-                    console.error("Error en una foto:", err);
-                }
+                p.innerText = `Subiendo ${uploadedCount + 1}...`;
+                const b64 = await new Promise((resolve) => compressImage(file, resolve));
+                const newPhotoRef = database.ref('gallery').push();
+                await newPhotoRef.set({ id: Date.now(), url: b64 });
+                uploadedCount++;
             }
-
-            p.innerText = originalText;
-            alert(`¡${uploadedCount} fotos añadidas al álbum! ❤️`);
-            renderGallery();
-            if (typeof throwHeart === 'function') throwHeart();
-            gFile.value = ""; // Limpiar input
+            p.innerText = "Haz clic para subir una nueva foto ✨";
+            alert(`¡${uploadedCount} fotos añadidas! ❤️`);
+            gFile.value = "";
         };
     }
-
     if (lbc) lbc.onclick = () => lb.classList.add('hidden');
-    if (lb) lb.onclick = (e) => { if(e.target===lb) lb.classList.add('hidden'); };
 }
 
 async function renderGallery() {
     const grid = document.getElementById('gallery-grid');
     if (!grid) return;
-    const photos = await dbGetAllPhotos();
+    const photosObj = await fbGet('gallery', {});
+    const photos = Object.entries(photosObj).map(([key, val]) => ({ ...val, fbKey: key })).reverse();
+    
     grid.innerHTML = photos.length ? '' : '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">Álbum vacío. ✨</p>';
     photos.forEach(p => {
         const item = document.createElement('div'); item.className = 'gallery-item';
         item.onclick = () => { document.getElementById('lightbox-img').src = p.url; document.getElementById('lightbox').classList.remove('hidden'); };
         const img = document.createElement('img'); img.src = p.url;
         const del = document.createElement('button'); del.className = 'delete-photo hidden'; del.innerHTML = '×';
-        del.onclick = async (e) => { e.stopPropagation(); if(!isAdmin) return; if(confirm("¿Borrar?")) { await dbDeletePhoto(p.id); renderGallery(); } };
+        del.onclick = async (e) => { e.stopPropagation(); if(!isAdmin) return; if(confirm("¿Borrar?")) { await database.ref(`gallery/${p.fbKey}`).remove(); renderGallery(); } };
         item.appendChild(img); item.appendChild(del); grid.appendChild(item);
     });
     checkAdminUI();

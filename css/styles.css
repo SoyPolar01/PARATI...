@@ -530,7 +530,62 @@ th { color: var(--primary); font-weight: 700; text-transform: uppercase; letter-
     margin: 1.5rem 0; outline: none; text-align: center; font-size: 1rem;
 }
 
+/* Responsive Navbar */
+.menu-toggle {
+    display: none;
+    flex-direction: column;
+    cursor: pointer;
+    gap: 5px;
+}
+
+.menu-toggle .bar {
+    width: 25px;
+    height: 3px;
+    background-color: var(--primary);
+    transition: all 0.3s ease;
+    border-radius: 5px;
+}
+
 @media (max-width: 768px) {
+    .navbar {
+        padding: 1rem 5%;
+    }
+
+    .menu-toggle {
+        display: flex;
+        z-index: 1001;
+    }
+
+    .nav-links {
+        position: fixed;
+        right: -100%;
+        top: 0;
+        flex-direction: column;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        width: 70%;
+        height: 100vh;
+        justify-content: center;
+        align-items: center;
+        transition: 0.3s ease-in-out;
+        box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        z-index: 1000;
+        gap: 2.5rem;
+    }
+
+    .nav-links.active {
+        right: 0;
+    }
+
+    .nav-links a {
+        font-size: 1.2rem;
+    }
+
+    /* Animación Hamburger a X */
+    .menu-toggle.active .bar:nth-child(2) { opacity: 0; }
+    .menu-toggle.active .bar:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+    .menu-toggle.active .bar:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
+
     .elegant-title { font-size: 3.5rem; }
     .hero-content h2 { font-size: 1.2rem; }
     .calendar-container { flex-direction: column; text-align: center; }
@@ -538,9 +593,7 @@ th { color: var(--primary); font-weight: 700; text-transform: uppercase; letter-
     .calendar-grid { gap: 8px; }
     .calendar-day { font-size: 0.9rem; border-radius: 10px; }
     .calendar-header h3 { font-size: 1.6rem; }
-    .navbar { padding: 1rem 5%; }
     .logo { font-size: 1.5rem; }
-    .nav-links { gap: 1rem; font-size: 0.9rem; }
     .message-card-full { padding: 2rem; }
     .dancing-title { font-size: 2rem; }
     .modal-content { padding: 2rem; border-radius: 30px; }
@@ -549,7 +602,6 @@ th { color: var(--primary); font-weight: 700; text-transform: uppercase; letter-
 
 @media (max-width: 480px) {
     .elegant-title { font-size: 2.8rem; }
-    .nav-links { display: none; } /* Ocultar links en móviles muy pequeños para simplificar */
     .hero-btns { display: flex; flex-direction: column; gap: 10px; }
     .btn { width: 100%; }
     .calendar-grid { gap: 5px; }
