@@ -162,7 +162,7 @@ if (adminTrigger) {
 
 function checkAdminUI() {
     // Mostrar/ocultar elementos de admin
-    const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo, #gallery-upload-area, #btn-save-gallery-photo');
+    const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo');
     adminElements.forEach(el => {
         isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden');
     });
@@ -624,7 +624,7 @@ function initGallery() {
     renderGallery();
 
     if (galleryDropZone && galleryFileInput) {
-        galleryDropZone.onclick = () => { if(isAdmin) galleryFileInput.click(); };
+        galleryDropZone.onclick = () => { galleryFileInput.click(); };
         galleryFileInput.onchange = (e) => {
             if(e.target.files[0]) handleFile(e.target.files[0], galleryDropZone, galleryPhotoUrlInput);
         };
@@ -632,7 +632,6 @@ function initGallery() {
 
     if (btnSaveGalleryPhoto) {
         btnSaveGalleryPhoto.onclick = () => {
-            if (!isAdmin) return;
             const b64 = galleryPhotoUrlInput.value;
             if (!b64) return alert("Selecciona una foto primero ✨");
             
