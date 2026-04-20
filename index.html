@@ -24,7 +24,7 @@
                 <li><a href="recuerdos.html">Corazones</a></li>
                 <li id="nav-logs-container" class="hidden"><a href="#" id="btn-show-logs">Logs</a></li>
                 <li><a href="#calendar">Calendario</a></li>
-                <li><a href="#notes-wall">Notas</a></li>
+                <li><a href="mensajes.html">Mensajes</a></li>
                 <li><a href="#message">Carta</a></li>
             </ul>
         </nav>
@@ -66,18 +66,6 @@
             </div>
         </section>
 
-        <!-- SECCIÓN MURO DE NOTAS -->
-        <section id="notes-wall" class="notes-wall-section">
-            <h2 class="section-title">Tus notas para mí ❤️</h2>
-            <p class="section-desc">Aquí puedes dejarme mensajitos cuando quieras.</p>
-            <div class="notes-container" id="notes-container">
-                <!-- Las notas se cargarán aquí desde JS -->
-            </div>
-            <div class="add-note-btn-container">
-                <button id="btn-open-note-creator" class="btn btn-primary">Dejar una nota ✨</button>
-            </div>
-        </section>
-
         <section id="message" class="message-section">
             <div class="message-card-full">
                 <h2 class="dancing-title">Un mensaje especial</h2>
@@ -91,30 +79,6 @@
                 <p class="signature">Para una persona muy especial para mí.</p>
             </div>
         </section>
-
-        <!-- MODAL PARA CREAR NUEVA NOTA -->
-        <div id="new-note-modal" class="modal-overlay hidden">
-            <div class="modal-content">
-                <h2 class="dancing-title">Nueva nota</h2>
-                <div class="note-form">
-                    <textarea id="new-note-text" placeholder="Escribe algo lindo aquí..."></textarea>
-                    <div class="note-color-picker">
-                        <p>Elige un color:</p>
-                        <div class="color-options">
-                            <div class="color-opt color-yellow selected" data-color="yellow"></div>
-                            <div class="color-opt color-pink" data-color="pink"></div>
-                            <div class="color-opt color-blue" data-color="blue"></div>
-                            <div class="color-opt color-green" data-color="green"></div>
-                            <div class="color-opt color-purple" data-color="purple"></div>
-                        </div>
-                    </div>
-                    <div class="modal-btns">
-                        <button id="btn-save-new-note" class="btn btn-primary">Postear Nota</button>
-                        <button id="btn-close-note-modal" class="btn btn-secondary">Cancelar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- MODAL PARA DETALLES DEL CALENDARIO -->
         <div id="note-modal" class="modal-overlay hidden">

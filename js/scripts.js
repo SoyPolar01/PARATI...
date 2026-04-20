@@ -43,7 +43,6 @@ window.addEventListener('DOMContentLoaded', () => {
     checkAdminUI();
     initCalendar();
     loadLetter();
-    initNotes(); // Inicializar el muro de notas
     
     if (redHeartsGrid || blackHeartsGrid) {
         initHearts();
@@ -165,7 +164,6 @@ if (adminTrigger) {
             if (redHeartsGrid || blackHeartsGrid) initHearts();
             if (editableLetter) loadLetter(); 
             if (stickersContainer) initStickers();
-            initNotes(); // Refrescar muro de notas para ver botones de borrar
             
             const btnShowLogs = document.getElementById('btn-show-logs');
             if (btnShowLogs) btnShowLogs.onclick = (e) => {
@@ -180,7 +178,7 @@ if (adminTrigger) {
 
 function checkAdminUI() {
     // Mostrar/ocultar elementos de admin
-    const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .btn-delete-note');
+    const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container');
     adminElements.forEach(el => {
         isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden');
     });
@@ -569,103 +567,3 @@ function renderSticker(data, index) {
     };
     stickersContainer.appendChild(div);
 }
-
-// --- LÓGICA DEL MURO DE NOTAS ---
-const notesContainer = document.getElementById('notes-container');
-const btnOpenNoteModal = document.getElementById('btn-open-note-creator');
-const newNoteModal = document.getElementById('new-note-modal');
-const btnSaveNewNote = document.getElementById('btn-save-new-note');
-const btnCloseNoteModal = document.getElementById('btn-close-note-modal');
-const newNoteText = document.getElementById('new-note-text');
-
-let selectedNoteColor = 'yellow';
-let wallNotes = JSON.parse(localStorage.getItem('wall-notes') || '[]');
-
-function initNotes() {
-    if (!notesContainer) return;
-    renderNotes();
-
-    if (btnOpenNoteModal) {
-        btnOpenNoteModal.onclick = () => {
-            newNoteModal.classList.remove('hidden');
-            newNoteText.value = '';
-            newNoteText.focus();
-        };
-    }
-
-    if (btnCloseNoteModal) {
-        btnCloseNoteModal.onclick = () => newNoteModal.classList.add('hidden');
-    }
-
-    const colorOpts = document.querySelectorAll('.color-opt');
-    colorOpts.forEach(opt => {
-        opt.onclick = () => {
-            colorOpts.forEach(o => o.classList.remove('selected'));
-            opt.classList.add('selected');
-            selectedNoteColor = opt.dataset.color;
-        };
-    });
-
-    if (btnSaveNewNote) {
-        btnSaveNewNote.onclick = () => {
-            const text = newNoteText.value.trim();
-            if (!text) return alert("¡Escribe algo primero! ❤️");
-
-            const newNote = {
-                id: Date.now(),
-                text: text,
-                color: selectedNoteColor,
-                date: new Date().toLocaleDateString(),
-                rotation: Math.floor(Math.random() * 6) - 3 // Rotación aleatoria entre -3 y 3 grados
-            };
-
-            wallNotes.push(newNote);
-            localStorage.setItem('wall-notes', JSON.stringify(wallNotes));
-            newNoteModal.classList.add('hidden');
-            renderNotes();
-            if (typeof throwHeart === 'function') throwHeart();
-        };
-    }
-}
-
-function renderNotes() {
-    if (!notesContainer) return;
-    notesContainer.innerHTML = '';
-    
-    if (wallNotes.length === 0) {
-        notesContainer.innerHTML = '<p style="grid-column: 1/-1; opacity: 0.5;">Aún no hay notas. ¡Sé la primera en dejar una! ✨</p>';
-        return;
-    }
-
-    wallNotes.forEach(note => {
-        const div = document.createElement('div');
-        div.className = `note-item note-${note.color}`;
-        div.style.setProperty('--rotation', `${note.rotation}deg`);
-        
-        div.innerHTML = `
-            <div class="note-text">${note.text}</div>
-            <div class="note-date">${note.date}</div>
-            <button class="btn-delete-note hidden" data-id="${note.id}">×</button>
-        `;
-        
-        const delBtn = div.querySelector('.btn-delete-note');
-        delBtn.onclick = (e) => {
-            e.stopPropagation();
-            deleteNote(note.id);
-        };
-        
-        notesContainer.appendChild(div);
-    });
-    
-    checkAdminUI(); // Actualizar visibilidad de botones de borrar
-}
-
-function deleteNote(id) {
-    if (!isAdmin) return;
-    if (confirm("¿Seguro que quieres borrar esta nota?")) {
-        wallNotes = wallNotes.filter(n => n.id !== id);
-        localStorage.setItem('wall-notes', JSON.stringify(wallNotes));
-        renderNotes();
-    }
-}
-
