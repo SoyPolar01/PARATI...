@@ -149,18 +149,30 @@ function renderAdminLogs() {
     if (!logsContainer) return;
     const logs = JSON.parse(localStorage.getItem('visit-logs') || '[]');
     let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs</h2></div>
-                <div class="logs-card"><table><thead><tr><th>Fecha</th><th>Disp</th></tr></thead><tbody>`;
+                <div class="logs-card">
+                    <div class="logs-table-wrapper">
+                        <table><thead><tr><th>Fecha</th><th>Disp</th></tr></thead><tbody>`;
     logs.forEach(log => { html += `<tr><td>${log.date}</td><td class="ua-text">${log.ua}</td></tr>`; });
-    html += `</tbody></table><button class="btn btn-primary" onclick="localStorage.clear(); location.reload();" style="margin-top:20px">Resetear Todo</button></div>`;
+    html += `</tbody></table>
+                    </div>
+                    <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){localStorage.clear(); location.reload();}" style="margin-top:20px">Resetear Todo</button>
+                </div>`;
     logsContainer.innerHTML = html;
     document.getElementById('btn-back-home').onclick = () => toggleAdminView(false);
 }
 
 function toggleAdminView(show) {
     const main = document.getElementById('main-content');
-    const admin = document.getElementById('admin-logs-view');
-    if (show) { if(main) main.classList.add('hidden'); if(admin) { admin.classList.remove('hidden'); renderAdminLogs(); } }
-    else { if(main) main.classList.remove('hidden'); if(admin) admin.classList.add('hidden'); }
+    if (show) {
+        renderAdminLogs();
+        const admin = document.getElementById('admin-logs-view');
+        if(main) main.classList.add('hidden');
+        if(admin) admin.classList.remove('hidden');
+    } else {
+        const admin = document.getElementById('admin-logs-view');
+        if(main) main.classList.remove('hidden');
+        if(admin) admin.classList.add('hidden');
+    }
 }
 
 if (adminTrigger) {
@@ -237,9 +249,26 @@ async function openNote(day, key) {
         document.getElementById('note-black-rating').value = data.blackRating || 0;
         updateStarsVisual(document.querySelector('.red-stars'), data.redRating || 0);
         updateStarsVisual(document.querySelector('.black-stars'), data.blackRating || 0);
+
+        // Añadir eventos a las estrellas para edición
+        document.querySelectorAll('.star-rating span').forEach(s => {
+            s.onclick = () => {
+                const val = parseInt(s.dataset.value);
+                const type = s.parentElement.dataset.type;
+                document.getElementById(`note-${type}-rating`).value = val;
+                updateStarsVisual(s.parentElement, val);
+            };
+        });
     }
     noteModal.classList.remove('hidden');
     checkAdminUI();
+}
+
+function updateStarsVisual(container, val) {
+    if (!container) return;
+    container.querySelectorAll('span').forEach(s => {
+        s.style.opacity = parseInt(s.dataset.value) <= val ? '1' : '0.2';
+    });
 }
 
 function renderRatingDisplay(container, type, val, key) {
