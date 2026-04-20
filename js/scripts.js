@@ -1,13 +1,12 @@
 // --- CONFIGURACIÓN Y ESTADO ---
 const MASTER_KEY = "14042024";
-let isAdmin = false; // El modo admin ahora empieza siempre en false (se pierde al recargar)
+let isAdmin = false;
 
 // --- ELEMENTOS COMUNES ---
 const adminTrigger = document.getElementById('admin-trigger');
 
 // --- PÁGINA DE INICIO (INDEX.HTML) ---
 const homePage = document.getElementById('home-page');
-
 const editableLetter = document.getElementById('editable-letter');
 const btnEdit = document.getElementById('btn-edit-letter');
 const btnSave = document.getElementById('btn-save-letter');
@@ -37,9 +36,84 @@ let selectedDateKey = "";
 const stickersContainer = document.getElementById('stickers-container');
 let stickers = JSON.parse(localStorage.getItem('stickers') || '[]');
 
+// --- BASE DE DATOS INDEXEDDB (ESPACIO AMPLIADO) ---
+const DB_NAME = 'ParaTiDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'data';
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+
+async function dbGet(key, defaultValue = null) {
+    try {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get(key);
+            request.onsuccess = () => resolve(request.result || defaultValue);
+            request.onerror = () => reject(request.error);
+        });
+    } catch (e) {
+        console.error("Error DB Get:", e);
+        return defaultValue;
+    }
+}
+
+async function dbSet(key, value) {
+    try {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.put(value, key);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    } catch (e) {
+        console.error("Error DB Set:", e);
+    }
+}
+
+// --- MIGRACIÓN DE DATOS (DE LOCALSTORAGE A INDEXEDDB) ---
+async function migrateData() {
+    const isMigrated = localStorage.getItem('db-migrated');
+    if (isMigrated) return;
+
+    console.log("Migrando datos a IndexedDB...");
+    
+    // Migrar fotos del álbum
+    const oldPhotos = localStorage.getItem('album-photos');
+    if (oldPhotos) await dbSet('album-photos', JSON.parse(oldPhotos));
+
+    // Migrar notas del calendario (esto es más complejo por las claves dinámicas)
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('note-')) {
+            const val = localStorage.getItem(key);
+            await dbSet(key, JSON.parse(val));
+        }
+    }
+
+    localStorage.setItem('db-migrated', 'true');
+    console.log("Migración completada.");
+}
+
 // --- INICIALIZACIÓN ---
-window.addEventListener('DOMContentLoaded', () => {
-    logVisit(); // Registrar la visita
+window.addEventListener('DOMContentLoaded', async () => {
+    await migrateData();
+    logVisit(); 
     checkAdminUI();
     initCalendar();
     loadLetter();
@@ -50,7 +124,6 @@ window.addEventListener('DOMContentLoaded', () => {
         initStickers();
     }
     
-    // Inicializar galería si estamos en esa página
     if (document.getElementById('gallery-grid')) {
         initGallery();
     }
@@ -65,11 +138,8 @@ function logVisit() {
         platform: navigator.platform,
         vendor: navigator.vendor
     };
-    
-    // Solo guardar los últimos 50 registros para no llenar el storage
     logs.unshift(newLog);
     if (logs.length > 50) logs.pop();
-    
     localStorage.setItem('visit-logs', JSON.stringify(logs));
 }
 
@@ -81,7 +151,6 @@ function renderAdminLogs() {
         logsContainer.className = 'hidden';
         homePage.appendChild(logsContainer);
     }
-    
     if (!logsContainer) return;
 
     const logs = JSON.parse(localStorage.getItem('visit-logs') || '[]');
@@ -94,18 +163,12 @@ function renderAdminLogs() {
             <div class="logs-table-wrapper">
                 <table>
                     <thead>
-                        <tr>
-                            <th>Fecha y Hora</th>
-                            <th>Dispositivo / Navegador</th>
-                        </tr>
+                        <tr><th>Fecha y Hora</th><th>Dispositivo / Navegador</th></tr>
                     </thead>
                     <tbody>`;
     
     logs.forEach(log => {
-        html += `<tr>
-            <td>${log.date}</td>
-            <td class="ua-text">${log.ua}</td>
-        </tr>`;
+        html += `<tr><td>${log.date}</td><td class="ua-text">${log.ua}</td></tr>`;
     });
     
     html += `</tbody></table></div>
@@ -114,7 +177,6 @@ function renderAdminLogs() {
     
     logsContainer.innerHTML = html;
 
-    // Eventos de la vista de logs
     const btnBack = document.getElementById('btn-back-home');
     if (btnBack) btnBack.onclick = () => toggleAdminView(false);
 }
@@ -122,13 +184,9 @@ function renderAdminLogs() {
 function toggleAdminView(showLogs) {
     const mainContent = document.getElementById('main-content');
     const adminView = document.getElementById('admin-logs-view');
-    
     if (showLogs) {
         if (mainContent) mainContent.classList.add('hidden');
-        if (adminView) {
-            adminView.classList.remove('hidden');
-            renderAdminLogs();
-        }
+        if (adminView) { adminView.classList.remove('hidden'); renderAdminLogs(); }
         window.scrollTo(0,0);
     } else {
         if (mainContent) mainContent.classList.remove('hidden');
@@ -142,7 +200,7 @@ if (adminTrigger) {
         const pass = prompt("Introduce la llave maestra:");
         if (pass === MASTER_KEY) {
             isAdmin = true;
-            alert("Modo administrador activado (se desactivará al recargar) ❤️");
+            alert("Modo administrador activado ❤️");
             checkAdminUI();
             if (calendarGrid) initCalendar();
             if (redHeartsGrid || blackHeartsGrid) initHearts();
@@ -161,16 +219,11 @@ if (adminTrigger) {
 }
 
 function checkAdminUI() {
-    // Mostrar/ocultar elementos de admin
     const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo');
     adminElements.forEach(el => {
         isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden');
     });
-    
-    if (editableLetter) {
-        editableLetter.contentEditable = isAdmin ? "true" : "false";
-    }
-
+    if (editableLetter) editableLetter.contentEditable = isAdmin ? "true" : "false";
     if (isAdmin) renderAdminLogs();
 }
 
@@ -183,7 +236,6 @@ if (btnEdit && btnSave) {
         btnEdit.classList.add('hidden');
         btnSave.classList.remove('hidden');
     });
-
     btnSave.addEventListener('click', () => {
         if (!isAdmin) return;
         editableLetter.contentEditable = "false";
@@ -202,7 +254,7 @@ function loadLetter() {
 }
 
 // --- CALENDARIO ---
-function initCalendar() {
+async function initCalendar() {
     if (!calendarGrid) return;
     const year = currentViewDate.getFullYear();
     const month = currentViewDate.getMonth();
@@ -212,12 +264,9 @@ function initCalendar() {
 
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const monthYearHeader = document.getElementById('current-month-year');
-    if (monthYearHeader) {
-        monthYearHeader.innerText = `${monthNames[month]} ${year}`;
-    }
+    if (monthYearHeader) monthYearHeader.innerText = `${monthNames[month]} ${year}`;
 
     calendarGrid.innerHTML = '';
-    
     ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => {
         const div = document.createElement('div');
         div.className = 'calendar-day-head';
@@ -241,7 +290,10 @@ function initCalendar() {
         const dateKey = `${year}-${month + 1}-${d}`;
         
         if (isCurrentMonth && d === today) div.classList.add('today');
-        if (localStorage.getItem(`note-${dateKey}`)) div.classList.add('has-note');
+        
+        // Verificación asíncrona de notas
+        const noteData = await dbGet(`note-${dateKey}`);
+        if (noteData) div.classList.add('has-note');
         
         div.innerText = d;
         div.onclick = () => openNote(d, dateKey);
@@ -269,10 +321,36 @@ if (dropZone && fileInput) {
     };
 }
 
-function handleFile(file, zone, targetInput) {
+// --- COMPRESIÓN DE IMÁGENES ---
+function compressImage(file, callback) {
     const reader = new FileReader();
-    reader.onload = (e) => {
-        const b64 = e.target.result;
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+            } else {
+                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const b64 = canvas.toDataURL('image/jpeg', 0.7);
+            callback(b64);
+        };
+    };
+}
+
+function handleFile(file, zone, targetInput) {
+    compressImage(file, (b64) => {
         if (targetInput) targetInput.value = b64;
         const previewImg = zone.querySelector('img') || document.createElement('img');
         previewImg.src = b64;
@@ -282,21 +360,20 @@ function handleFile(file, zone, targetInput) {
         const infoText = zone.querySelector('p');
         if (infoText) infoText.style.display = "none";
         if (!zone.querySelector('img')) zone.appendChild(previewImg);
-    };
-    reader.readAsDataURL(file);
+        const btnSaveGallery = document.getElementById('btn-save-gallery-photo');
+        if (btnSaveGallery) btnSaveGallery.classList.remove('hidden');
+    });
 }
 
 // --- CALIFICACIONES (CORAZONES) ---
 function initRatings() {
     document.querySelectorAll('.star-rating span').forEach(star => {
-        star.onclick = (e) => {
+        star.onclick = async (e) => {
             if (!isAdmin) return;
             const container = e.target.parentElement;
             const type = container.dataset.type;
             const val = parseInt(e.target.dataset.value);
             const currentVal = parseInt(document.getElementById(`note-${type}-rating`).value || 0);
-            
-            // Solo permitir aumentar el valor
             if (val > currentVal) {
                 document.getElementById(`note-${type}-rating`).value = val;
                 updateStarsVisual(container, val);
@@ -324,36 +401,23 @@ function renderRatingDisplay(container, type, value, dateKey) {
         span.style.fontSize = '1.8rem';
         span.style.cursor = i <= value ? 'default' : 'pointer';
         span.style.transition = 'transform 0.2s';
-        
         if (i > value) {
             span.onclick = () => markNoteHeart(dateKey, type, i);
             span.onmouseover = () => span.style.transform = 'scale(1.2)';
             span.onmouseout = () => span.style.transform = 'scale(1)';
         }
-        
         container.appendChild(span);
     }
 }
 
-function markNoteHeart(dateKey, type, newValue) {
-    const data = JSON.parse(localStorage.getItem(`note-${dateKey}`) || '{}');
+async function markNoteHeart(dateKey, type, newValue) {
+    const data = await dbGet(`note-${dateKey}`, {});
     const currentVal = type === 'red' ? (data.redRating || 0) : (data.blackRating || 0);
-    
     if (newValue > currentVal) {
-        if (type === 'red') {
-            data.redRating = newValue;
-            throwHeart();
-        } else {
-            data.blackRating = newValue;
-        }
-        
-        localStorage.setItem(`note-${dateKey}`, JSON.stringify(data));
-        
-        // Actualizar visualización en tiempo real
+        if (type === 'red') { data.redRating = newValue; throwHeart(); } else { data.blackRating = newValue; }
+        await dbSet(`note-${dateKey}`, data);
         const viewContainer = document.getElementById(`view-${type}-rating`);
         if (viewContainer) renderRatingDisplay(viewContainer, type, newValue, dateKey);
-        
-        // Si el admin está editando, actualizar sus inputs ocultos
         const adminInput = document.getElementById(`note-${type}-rating`);
         if (adminInput) adminInput.value = newValue;
         const adminStars = document.querySelector(`.${type}-stars`);
@@ -363,24 +427,19 @@ function markNoteHeart(dateKey, type, newValue) {
 
 initRatings();
 
-function openNote(day, dateKey) {
+async function openNote(day, dateKey) {
     selectedDateKey = dateKey;
     const modalDate = document.getElementById('modal-date');
     if (modalDate) modalDate.innerText = `Detalle del día ${day}`;
 
-    const data = JSON.parse(localStorage.getItem(`note-${dateKey}`) || '{}');
+    const data = await dbGet(`note-${dateKey}`, {});
     const viewImg = document.getElementById('view-img');
     const viewMsg = document.getElementById('view-msg');
     const redRatingView = document.getElementById('view-red-rating');
     const blackRatingView = document.getElementById('view-black-rating');
     
-    if (viewImg) {
-        viewImg.src = data.photo || "";
-        viewImg.style.display = data.photo ? 'block' : 'none';
-    }
-    if (viewMsg) {
-        viewMsg.innerText = data.message || (isAdmin ? "No hay mensaje aún. ¡Escribe uno abajo!" : "No hay detalles para este día.");
-    }
+    if (viewImg) { viewImg.src = data.photo || ""; viewImg.style.display = data.photo ? 'block' : 'none'; }
+    if (viewMsg) viewMsg.innerText = data.message || (isAdmin ? "No hay mensaje aún. ¡Escribe uno abajo!" : "No hay detalles para este día.");
 
     if (redRatingView) renderRatingDisplay(redRatingView, 'red', data.redRating || 0, dateKey);
     if (blackRatingView) renderRatingDisplay(blackRatingView, 'black', data.blackRating || 0, dateKey);
@@ -392,7 +451,6 @@ function openNote(day, dateKey) {
         document.getElementById('note-black-rating').value = data.blackRating || 0;
         updateStarsVisual(document.querySelector('.red-stars'), data.redRating || 0);
         updateStarsVisual(document.querySelector('.black-stars'), data.blackRating || 0);
-        
         if (dropZone) {
             const oldImg = dropZone.querySelector('img');
             if (oldImg) oldImg.remove();
@@ -400,21 +458,17 @@ function openNote(day, dateKey) {
             if (infoText) infoText.style.display = data.photo ? "none" : "block";
             if (data.photo) {
                 const img = document.createElement('img');
-                img.src = data.photo;
-                img.style.maxHeight = "100px";
-                img.style.borderRadius = "10px";
-                img.style.margin = "0 auto";
+                img.src = data.photo; img.style.maxHeight = "100px"; img.style.borderRadius = "10px"; img.style.margin = "0 auto";
                 dropZone.appendChild(img);
             }
         }
     }
-    
     if (noteModal) noteModal.classList.remove('hidden');
     checkAdminUI();
 }
 
 if (btnSaveNote) {
-    btnSaveNote.addEventListener('click', () => {
+    btnSaveNote.addEventListener('click', async () => {
         if (!isAdmin) return; 
         const data = { 
             photo: notePhotoUrlInput.value, 
@@ -422,15 +476,13 @@ if (btnSaveNote) {
             redRating: document.getElementById('note-red-rating').value,
             blackRating: document.getElementById('note-black-rating').value
         };
-        localStorage.setItem(`note-${selectedDateKey}`, JSON.stringify(data));
+        await dbSet(`note-${selectedDateKey}`, data);
         noteModal.classList.add('hidden');
         initCalendar();
     });
 }
 
-if (btnCloseModal) {
-    btnCloseModal.addEventListener('click', () => noteModal.classList.add('hidden'));
-}
+if (btnCloseModal) btnCloseModal.addEventListener('click', () => noteModal.classList.add('hidden'));
 
 // --- CORAZONES ---
 function initHearts() {
@@ -457,31 +509,24 @@ function toggleHeart(type, index, element) {
     let state = JSON.parse(localStorage.getItem(key) || '[]');
     if (state.includes(index)) return;
     state.push(index);
-    element.classList.add('marked');
-    element.classList.remove('unmarked');
+    element.classList.add('marked'); element.classList.remove('unmarked');
     if (type === 'red') throwHeart(); 
     localStorage.setItem(key, JSON.stringify(state));
 }
 
 function throwHeart() {
     const h = document.createElement('div');
-    h.className = 'thrown-heart';
-    h.innerText = '❤️';
-    document.body.appendChild(h);
+    h.className = 'thrown-heart'; h.innerText = '❤️'; document.body.appendChild(h);
     h.style.left = Math.random() * window.innerWidth + 'px';
     h.style.top = (Math.random() > 0.5 ? -50 : window.innerHeight + 50) + 'px';
-    setTimeout(() => {
-        h.style.left = '50%';
-        h.style.top = '50%';
-        h.style.opacity = '0';
-    }, 100);
+    setTimeout(() => { h.style.left = '50%'; h.style.top = '50%'; h.style.opacity = '0'; }, 100);
     setTimeout(() => h.remove(), 1200);
 }
 
 // --- LÓGICA DE STICKERS (PEGATINAS) ---
 function initStickers() {
     if (!stickersContainer) return;
-    stickersContainer.innerHTML = '<div class="sticker-instruction" id="sticker-instruction">Haz doble clic en cualquier lugar para añadir un mensaje ✨</div>';
+    stickersContainer.innerHTML = '<div class="sticker-instruction" id="sticker-instruction">Haz doble clic para añadir un mensaje ✨</div>';
     stickers = JSON.parse(localStorage.getItem('stickers') || '[]');
     stickers.forEach((sticker, index) => renderSticker(sticker, index));
     stickersContainer.ondblclick = (e) => {
@@ -489,12 +534,7 @@ function initStickers() {
         const text = prompt("Escribe tu mensaje:");
         if (text) {
             const colors = ['', 'pink', 'blue', 'green'];
-            const newSticker = {
-                text: text,
-                x: e.clientX - 100,
-                y: e.clientY - 75,
-                color: colors[Math.floor(Math.random() * colors.length)]
-            };
+            const newSticker = { text: text, x: e.clientX - 100, y: e.clientY - 75, color: colors[Math.floor(Math.random() * colors.length)] };
             stickers.push(newSticker);
             localStorage.setItem('stickers', JSON.stringify(stickers));
             renderSticker(newSticker, stickers.length - 1);
@@ -505,210 +545,86 @@ function initStickers() {
 
 function renderSticker(data, index) {
     const div = document.createElement('div');
-    div.className = `sticker ${data.color}`;
-    div.style.left = data.x + 'px';
-    div.style.top = data.y + 'px';
-    div.innerText = data.text;
-    
+    div.className = `sticker ${data.color}`; div.style.left = data.x + 'px'; div.style.top = data.y + 'px'; div.innerText = data.text;
     const delBtn = document.createElement('button');
-    delBtn.className = 'delete-sticker hidden';
-    delBtn.innerHTML = '×';
+    delBtn.className = 'delete-sticker hidden'; delBtn.innerHTML = '×';
     delBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (!isAdmin) return;
-        stickers.splice(index, 1);
-        localStorage.setItem('stickers', JSON.stringify(stickers));
-        initStickers();
+        e.stopPropagation(); if (!isAdmin) return;
+        stickers.splice(index, 1); localStorage.setItem('stickers', JSON.stringify(stickers)); initStickers();
     };
     div.appendChild(delBtn);
 
     let isDragging = false;
     let offsetX, offsetY;
-
-    div.onmousedown = (e) => {
-        if (e.target === delBtn) return;
-        isDragging = true;
-        offsetX = e.clientX - div.offsetLeft;
-        offsetY = e.clientY - div.offsetTop;
-        div.style.zIndex = 1000;
-    };
-
-    window.onmousemove = (e) => {
-        if (isDragging) {
-            data.x = e.clientX - offsetX;
-            data.y = e.clientY - offsetY;
-            div.style.left = data.x + 'px';
-            div.style.top = data.y + 'px';
-        }
-    };
-
-    window.onmouseup = () => {
-        if (isDragging) {
-            isDragging = false;
-            div.style.zIndex = 10;
-            localStorage.setItem('stickers', JSON.stringify(stickers));
-        }
-    };
+    div.onmousedown = (e) => { if (e.target === delBtn) return; isDragging = true; offsetX = e.clientX - div.offsetLeft; offsetY = e.clientY - div.offsetTop; div.style.zIndex = 1000; };
+    window.onmousemove = (e) => { if (isDragging) { data.x = e.clientX - offsetX; data.y = e.clientY - offsetY; div.style.left = data.x + 'px'; div.style.top = data.y + 'px'; } };
+    window.onmouseup = () => { if (isDragging) { isDragging = false; div.style.zIndex = 10; localStorage.setItem('stickers', JSON.stringify(stickers)); } };
     stickersContainer.appendChild(div);
 }
 
-// --- COMPRESIÓN DE IMÁGENES ---
-function compressImage(file, callback) {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800;
-            const MAX_HEIGHT = 800;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-                if (width > MAX_WIDTH) {
-                    height *= MAX_WIDTH / width;
-                    width = MAX_WIDTH;
-                }
-            } else {
-                if (height > MAX_HEIGHT) {
-                    width *= MAX_HEIGHT / height;
-                    height = MAX_HEIGHT;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            // Comprimir como JPEG con calidad 0.7
-            const b64 = canvas.toDataURL('image/jpeg', 0.7);
-            callback(b64);
-        };
-    };
-}
-
-// Sobrescribir handleFile para usar compresión
-function handleFile(file, zone, targetInput) {
-    compressImage(file, (b64) => {
-        if (targetInput) targetInput.value = b64;
-        const previewImg = zone.querySelector('img') || document.createElement('img');
-        previewImg.src = b64;
-        previewImg.style.maxHeight = "100px";
-        previewImg.style.borderRadius = "10px";
-        previewImg.style.margin = "0 auto";
-        const infoText = zone.querySelector('p');
-        if (infoText) infoText.style.display = "none";
-        if (!zone.querySelector('img')) zone.appendChild(previewImg);
-        
-        // Si hay un botón de guardado específico para la galería, mostrarlo
-        const btnSaveGallery = document.getElementById('btn-save-gallery-photo');
-        if (btnSaveGallery) btnSaveGallery.classList.remove('hidden');
-    });
-}
-
-// --- LÓGICA DE LA GALERÍA DE FOTOS ---
+// --- LÓGICA DE LA GALERÍA DE FOTOS (CON INDEXEDDB) ---
 function initGallery() {
-    const galleryGrid = document.getElementById('gallery-grid');
     const galleryDropZone = document.getElementById('gallery-drop-zone');
     const galleryFileInput = document.getElementById('gallery-file-input');
     const galleryPhotoUrlInput = document.getElementById('gallery-photo-url');
     const btnSaveGalleryPhoto = document.getElementById('btn-save-gallery-photo');
     const lightbox = document.getElementById('lightbox');
-    const lightboxImg = document.getElementById('lightbox-img');
     const closeLightbox = document.getElementById('close-lightbox');
 
-    if (!galleryGrid) return;
-    renderGallery();
+    if (document.getElementById('gallery-grid')) renderGallery();
 
     if (galleryDropZone && galleryFileInput) {
-        galleryDropZone.onclick = () => { galleryFileInput.click(); };
-        galleryFileInput.onchange = (e) => {
-            if(e.target.files[0]) handleFile(e.target.files[0], galleryDropZone, galleryPhotoUrlInput);
-        };
+        galleryDropZone.onclick = () => galleryFileInput.click();
+        galleryFileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0], galleryDropZone, galleryPhotoUrlInput); };
     }
 
     if (btnSaveGalleryPhoto) {
-        btnSaveGalleryPhoto.onclick = () => {
+        btnSaveGalleryPhoto.onclick = async () => {
             const b64 = galleryPhotoUrlInput.value;
             if (!b64) return alert("Selecciona una foto primero ✨");
-            
-            const photos = JSON.parse(localStorage.getItem('album-photos') || '[]');
+            const photos = await dbGet('album-photos', []);
             photos.unshift({ id: Date.now(), url: b64 });
-            
-            try {
-                localStorage.setItem('album-photos', JSON.stringify(photos));
-                alert("Foto guardada en el álbum ❤️");
-                
-                // Limpiar zona de subida
-                galleryPhotoUrlInput.value = "";
-                const img = galleryDropZone.querySelector('img');
-                if (img) img.remove();
-                const p = galleryDropZone.querySelector('p');
-                if (p) p.style.display = "block";
-                btnSaveGalleryPhoto.classList.add('hidden');
-                
-                renderGallery();
-                if (typeof throwHeart === 'function') throwHeart();
-            } catch (e) {
-                alert("No queda espacio en el navegador para más fotos. Borra algunas o usa fotos más pequeñas.");
-            }
+            await dbSet('album-photos', photos);
+            alert("Foto guardada en el álbum ❤️");
+            galleryPhotoUrlInput.value = "";
+            const img = galleryDropZone.querySelector('img'); if (img) img.remove();
+            const p = galleryDropZone.querySelector('p'); if (p) p.style.display = "block";
+            btnSaveGalleryPhoto.classList.add('hidden');
+            renderGallery();
+            throwHeart();
         };
     }
 
-    if (closeLightbox) {
-        closeLightbox.onclick = () => lightbox.classList.add('hidden');
-    }
-    if (lightbox) {
-        lightbox.onclick = (e) => { if(e.target === lightbox) lightbox.classList.add('hidden'); };
-    }
+    if (closeLightbox) closeLightbox.onclick = () => lightbox.classList.add('hidden');
+    if (lightbox) lightbox.onclick = (e) => { if(e.target === lightbox) lightbox.classList.add('hidden'); };
 }
 
-function renderGallery() {
+async function renderGallery() {
     const galleryGrid = document.getElementById('gallery-grid');
     const lightbox = document.getElementById('lightbox');
     const lightboxImg = document.getElementById('lightbox-img');
-    
     if (!galleryGrid) return;
-    const photos = JSON.parse(localStorage.getItem('album-photos') || '[]');
+    const photos = await dbGet('album-photos', []);
     galleryGrid.innerHTML = '';
-
     if (photos.length === 0) {
-        galleryGrid.innerHTML = '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">El álbum está vacío. ¡Sube vuestra primera foto! ✨</p>';
+        galleryGrid.innerHTML = '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">El álbum está vacío. ✨</p>';
     }
-
     photos.forEach(photo => {
         const item = document.createElement('div');
         item.className = 'gallery-item';
-        item.onclick = () => {
-            lightboxImg.src = photo.url;
-            lightbox.classList.remove('hidden');
-        };
-
-        const img = document.createElement('img');
-        img.src = photo.url;
-        img.alt = "Foto de nosotros";
-        
+        item.onclick = () => { lightboxImg.src = photo.url; lightbox.classList.remove('hidden'); };
+        const img = document.createElement('img'); img.src = photo.url;
         const delBtn = document.createElement('button');
-        delBtn.className = 'delete-photo hidden';
-        delBtn.innerHTML = '×';
-        delBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (!isAdmin) return;
-            if (confirm("¿Borrar esta foto del álbum?")) {
+        delBtn.className = 'delete-photo hidden'; delBtn.innerHTML = '×';
+        delBtn.onclick = async (e) => {
+            e.stopPropagation(); if (!isAdmin) return;
+            if (confirm("¿Borrar esta foto?")) {
                 const updatedPhotos = photos.filter(p => p.id !== photo.id);
-                localStorage.setItem('album-photos', JSON.stringify(updatedPhotos));
+                await dbSet('album-photos', updatedPhotos);
                 renderGallery();
             }
         };
-
-        item.appendChild(img);
-        item.appendChild(delBtn);
-        galleryGrid.appendChild(item);
+        item.appendChild(img); item.appendChild(delBtn); galleryGrid.appendChild(item);
     });
-
     checkAdminUI();
 }
-
