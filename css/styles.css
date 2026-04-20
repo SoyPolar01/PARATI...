@@ -1,0 +1,477 @@
+:root {
+    --primary: #ff0a54;
+    --secondary: #ff7096;
+    --bg-pink: #fff0f3;
+    --dark: #49111c;
+    --glass: rgba(255, 255, 255, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --white: #ffffff;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--bg-pink);
+    color: var(--dark);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.hidden { display: none !important; }
+.fade-out { animation: fade-out 1s forwards; }
+@keyframes fade-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.9); } }
+.fade-in { animation: fade-in 1.5s forwards; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Background Aurora & Blobs */
+.aurora-bg {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(circle at 20% 30%, #ffccd5 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, #ff8fa3 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, #fff0f3 0%, #ffccd5 100%);
+    filter: blur(40px); z-index: -2;
+}
+
+.blobs .blob {
+    position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.3;
+    animation: blob-move 20s infinite alternate ease-in-out; z-index: -1;
+}
+@keyframes blob-move { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(10%,15%) scale(1.2); } }
+
+/* Navbar */
+.navbar {
+    position: fixed; top: 0; width: 100%; padding: 1.5rem 5%;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
+    z-index: 1000; box-shadow: 0 2px 15px rgba(255, 77, 109, 0.1);
+}
+.logo { font-family: 'Dancing Script', cursive; font-size: 1.8rem; color: var(--primary); font-weight: 700; }
+.nav-links { display: flex; list-style: none; gap: 2rem; }
+.nav-links a { text-decoration: none; color: var(--dark); font-weight: 500; transition: color 0.3s; }
+.nav-links a:hover { color: var(--primary); }
+
+/* HERO */
+.hero { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 0 10%; text-align: center; }
+.elegant-title { font-family: 'Great Vibes', cursive; font-size: 5rem; color: var(--primary); margin-bottom: 1.5rem; line-height: 1.1; }
+.hero-desc { font-size: 1.2rem; opacity: 0.8; max-width: 600px; margin: 0 auto 2.5rem; line-height: 1.6; }
+.btn { padding: 1rem 2rem; border-radius: 50px; text-decoration: none; font-weight: 600; transition: all 0.3s; cursor: pointer; border: none; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-secondary { border: 2px solid var(--primary); color: var(--primary); background: transparent; }
+
+/* CALENDAR */
+.calendar-section { padding: 5rem 10%; background: rgba(255, 255, 255, 0.2); }
+.calendar-container { display: flex; gap: 3rem; align-items: center; justify-content: center; flex-wrap: wrap; }
+
+.calendar-card {
+    background: var(--glass);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    padding: 2.5rem;
+    border-radius: 40px;
+    box-shadow: 0 20px 40px rgba(255, 77, 109, 0.1);
+    width: 100%;
+    max-width: 450px;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.calendar-header h3 {
+    font-family: 'Dancing Script', cursive;
+    font-size: 2rem;
+    color: var(--primary);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.btn-nav {
+    background: var(--white);
+    border: none;
+    color: var(--primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.btn-nav:hover {
+    background: var(--primary);
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 8px 15px rgba(255, 10, 84, 0.2);
+}
+
+.calendar-grid { 
+    display: grid; 
+    grid-template-columns: repeat(7, 1fr); 
+    gap: 12px; 
+    text-align: center; 
+}
+
+.calendar-day-head { 
+    font-size: 0.9rem; 
+    font-weight: 700; 
+    color: var(--secondary); 
+    padding-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.calendar-day { 
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1rem;
+    color: var(--dark);
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+    background: rgba(255,255,255,0.3);
+}
+
+.calendar-day:hover:not(.empty) {
+    background: var(--primary);
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(255, 10, 84, 0.3);
+}
+
+.calendar-day.today {
+    background: var(--primary);
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 8px 20px rgba(255, 10, 84, 0.3);
+}
+
+.calendar-day.empty {
+    cursor: default;
+    background: transparent;
+}
+
+.calendar-day.has-note::after { 
+    content: '•'; 
+    position: absolute; 
+    bottom: 4px; 
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+.calendar-day.today.has-note::after {
+    color: white;
+}
+
+.calendar-info {
+    text-align: center;
+    max-width: 300px;
+}
+
+.countdown-display {
+    font-family: 'Dancing Script', cursive;
+    font-size: 3rem;
+    color: var(--primary);
+    margin-top: 1rem;
+    font-weight: 700;
+}
+
+
+/* MODAL */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+.modal-content { background: white; padding: 3rem; border-radius: 40px; width: 90%; max-width: 500px; text-align: center; box-shadow: 0 30px 60px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+.dancing-title { font-family: 'Dancing Script', cursive; font-size: 2.5rem; color: var(--primary); margin-bottom: 1.5rem; }
+.note-inputs { text-align: left; margin-bottom: 2rem; }
+.note-inputs label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: var(--secondary); }
+
+.drop-zone {
+    width: 100%;
+    height: 120px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border: 2px dashed var(--secondary);
+    border-radius: 15px;
+    cursor: pointer;
+    background: var(--bg-pink);
+    color: var(--secondary);
+    margin-bottom: 1.5rem;
+    transition: all 0.3s;
+}
+.drop-zone:hover, .drop-zone.dragover {
+    background: white;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.note-inputs textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 1.5rem; font-family: inherit; outline: none; height: 100px; resize: none; }
+.note-preview img { width: 100%; border-radius: 15px; margin-bottom: 1rem; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+.modal-btns { display: flex; gap: 1rem; justify-content: center; }
+
+/* MESSAGE SECTION */
+.message-section { padding: 5rem 10%; }
+.message-card-full { background: var(--white); padding: 4rem; border-radius: 40px; max-width: 900px; margin: 0 auto; box-shadow: 0 30px 60px rgba(255, 77, 109, 0.1); position: relative; }
+.letter-actions { position: absolute; top: 2rem; right: 2rem; display: flex; gap: 10px; }
+.scroll-msg { outline: none; padding: 1rem; line-height: 1.8; text-align: left; }
+.scroll-msg[contenteditable="true"] { background: var(--bg-pink); border-radius: 10px; border: 1px dashed var(--secondary); }
+.signature { font-family: 'Great Vibes', cursive; font-size: 2.2rem; color: var(--secondary); text-align: center; margin-top: 2rem; }
+
+/* GALLERY PAGE (Mantenido por compatibilidad si se usa en otros sitios, pero modificado para corazones) */
+.gallery-page { padding: 8rem 10% 5rem; }
+
+/* HEARTS PAGE */
+.hearts-page { padding: 8rem 5% 5rem; max-width: 1000px; margin: 0 auto; }
+.hearts-container { margin-bottom: 5rem; text-align: center; }
+.section-subtitle { margin-bottom: 2rem; opacity: 0.7; font-size: 1.1rem; font-family: 'Poppins', sans-serif; }
+.hearts-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); 
+    gap: 15px; 
+    justify-content: center; 
+    background: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(10px);
+    padding: 2.5rem; 
+    border-radius: 40px; 
+    box-shadow: 0 20px 40px rgba(255, 77, 109, 0.1);
+    border: 1px solid var(--glass-border);
+}
+.heart-item { 
+    font-size: 2.2rem; 
+    cursor: pointer; 
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    aspect-ratio: 1;
+    border-radius: 20px;
+    background: white;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    user-select: none;
+}
+.heart-item:hover { transform: scale(1.15) rotate(5deg); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+
+/* Estados de los corazones */
+.heart-item.unmarked { color: #e0e0e0; filter: grayscale(1); opacity: 0.6; }
+
+/* Tabla Roja */
+#red-hearts-grid .heart-item.marked { 
+    color: var(--primary); 
+    background: #fff0f3; 
+    box-shadow: 0 8px 20px rgba(255, 10, 84, 0.2); 
+    filter: none;
+    opacity: 1;
+}
+
+/* Tabla Negra */
+#black-hearts-grid .heart-item.marked { 
+    color: #1a1a1a; 
+    background: #f0f0f0; 
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); 
+    filter: none;
+    opacity: 1;
+}
+
+.main-footer { padding: 4rem; text-align: center; opacity: 0.5; font-size: 0.9rem; }
+
+/* Particles */
+.thrown-heart { position: fixed; pointer-events: none; z-index: 100; font-size: 40px; filter: drop-shadow(0 0 10px rgba(255, 10, 84, 0.6)); transition: all 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.particle { position: fixed; pointer-events: none; z-index: 5; animation: particle-up 4s ease-out forwards; }
+@keyframes particle-up { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-100vh) scale(0); opacity: 0; } }
+
+/* STAR RATING */
+.star-rating {
+    display: flex;
+    gap: 5px;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+.star-rating span {
+    opacity: 0.3;
+    transition: transform 0.2s, opacity 0.2s;
+}
+.star-rating span:hover {
+    transform: scale(1.2);
+}
+.star-rating span.selected {
+    opacity: 1;
+}
+
+.rating-display span {
+    margin: 0 1px;
+}
+
+/* STICKERS / PEGATINAS */
+.stickers-page {
+    min-height: 100vh;
+    padding: 8rem 2rem 5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.sticker {
+    position: absolute;
+    background: #fff9c4;
+    padding: 1.5rem;
+    width: 200px;
+    min-height: 150px;
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+    border-radius: 2px;
+    font-family: 'Dancing Script', cursive;
+    font-size: 1.3rem;
+    color: #333;
+    cursor: move;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: transform 0.2s;
+    user-select: none;
+    z-index: 10;
+}
+
+.sticker:hover {
+    transform: scale(1.05) rotate(1deg);
+    z-index: 20;
+}
+
+.sticker::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    border-width: 0 25px 25px 0;
+    border-style: solid;
+    border-color: rgba(0,0,0,0.1) #fff;
+    display: block; width: 0;
+}
+
+.sticker.pink { background: #ffc1e3; }
+.sticker.blue { background: #c1e3ff; }
+.sticker.green { background: #c1ffe3; }
+
+.sticker .delete-sticker {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: var(--primary);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.sticker:hover .delete-sticker {
+    opacity: 1;
+}
+
+.sticker-instruction {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--glass);
+    backdrop-filter: blur(5px);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary);
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* ADMIN LOGS VIEW */
+#admin-logs-view { 
+    position: relative;
+    padding: 8rem 5% 5rem; 
+    min-height: 100vh;
+    z-index: 10;
+}
+.admin-page-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    max-width: 1000px;
+    margin: 0 auto 3rem;
+}
+.logs-card {
+    background: var(--glass); 
+    backdrop-filter: blur(20px);
+    padding: 3rem; 
+    border-radius: 40px; 
+    border: 1px solid var(--glass-border);
+    max-width: 1000px; 
+    margin: 0 auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+}
+.logs-table-wrapper { overflow-x: auto; margin-top: 2rem; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+th, td { padding: 15px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+th { color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+.ua-text { font-family: monospace; font-size: 0.8rem; color: #666; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ua-text:hover { white-space: normal; word-break: break-all; }
+
+/* LOGIN SCREEN (Limpieza) */
+.login-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--bg-pink); z-index: 5000;
+    display: flex; justify-content: center; align-items: center;
+}
+.login-card {
+    background: var(--glass); backdrop-filter: blur(20px);
+    padding: 3rem; border-radius: 40px; border: 1px solid var(--glass-border);
+    text-align: center; width: 90%; max-width: 400px;
+    box-shadow: 0 20px 50px rgba(255, 10, 84, 0.1);
+}
+.login-card input {
+    width: 100%; padding: 1rem; border-radius: 20px; border: 1px solid #ddd;
+    margin: 1.5rem 0; outline: none; text-align: center; font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .elegant-title { font-size: 3.5rem; }
+    .hero-content h2 { font-size: 1.2rem; }
+    .calendar-container { flex-direction: column; text-align: center; }
+    .calendar-card { padding: 1.5rem; }
+    .calendar-grid { gap: 8px; }
+    .calendar-day { font-size: 0.9rem; border-radius: 10px; }
+    .calendar-header h3 { font-size: 1.6rem; }
+    .navbar { padding: 1rem 5%; }
+    .logo { font-size: 1.5rem; }
+    .nav-links { gap: 1rem; font-size: 0.9rem; }
+    .message-card-full { padding: 2rem; }
+    .dancing-title { font-size: 2rem; }
+    .modal-content { padding: 2rem; border-radius: 30px; }
+    .hearts-grid { padding: 1.5rem; border-radius: 30px; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); }
+}
+
+@media (max-width: 480px) {
+    .elegant-title { font-size: 2.8rem; }
+    .nav-links { display: none; } /* Ocultar links en móviles muy pequeños para simplificar */
+    .hero-btns { display: flex; flex-direction: column; gap: 10px; }
+    .btn { width: 100%; }
+    .calendar-grid { gap: 5px; }
+    .calendar-day { border-radius: 8px; }
+}
