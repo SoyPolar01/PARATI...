@@ -350,24 +350,43 @@ function renderSticker(data, index) {
     stickersContainer.appendChild(div);
 }
 
-// --- GALERÍA V3 ---
+// --- GALERÍA V3 (CON SUBIDA MÚLTIPLE) ---
 function initGallery() {
     const gZone = document.getElementById('gallery-drop-zone'), gFile = document.getElementById('gallery-file-input');
-    const gUrl = document.getElementById('gallery-photo-url'), gSave = document.getElementById('btn-save-gallery-photo');
-    const lb = document.getElementById('lightbox'), lbi = document.getElementById('lightbox-img'), lbc = document.getElementById('close-lightbox');
+    const lb = document.getElementById('lightbox'), lbc = document.getElementById('close-lightbox');
+    
     if (document.getElementById('gallery-grid')) renderGallery();
+    
     if (gZone) gZone.onclick = () => gFile.click();
-    if (gFile) gFile.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0], gZone, gUrl); };
-    if (gSave) gSave.onclick = async () => {
-        const b64 = gUrl.value; if (!b64) return alert("Elige foto");
-        try {
-            await dbAddPhoto({ id: Date.now(), url: b64 });
-            alert("¡Foto guardada! ❤️");
-            gUrl.value = ""; if(gZone.querySelector('img')) gZone.querySelector('img').remove();
-            gZone.querySelector('p').style.display = "block"; gZone.querySelector('p').innerText = "Haz clic para subir otra ✨";
-            gSave.classList.add('hidden'); renderGallery(); throwHeart();
-        } catch (err) { alert("Error al guardar: " + err); }
-    };
+    
+    if (gFile) {
+        gFile.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            
+            const p = gZone.querySelector('p');
+            const originalText = p.innerText;
+            let uploadedCount = 0;
+
+            for (const file of files) {
+                p.innerText = `Subiendo ${uploadedCount + 1} de ${files.length}... ⏳`;
+                try {
+                    const b64 = await new Promise((resolve) => compressImage(file, resolve));
+                    await dbAddPhoto({ id: Date.now() + uploadedCount, url: b64 });
+                    uploadedCount++;
+                } catch (err) {
+                    console.error("Error en una foto:", err);
+                }
+            }
+
+            p.innerText = originalText;
+            alert(`¡${uploadedCount} fotos añadidas al álbum! ❤️`);
+            renderGallery();
+            if (typeof throwHeart === 'function') throwHeart();
+            gFile.value = ""; // Limpiar input
+        };
+    }
+
     if (lbc) lbc.onclick = () => lb.classList.add('hidden');
     if (lb) lb.onclick = (e) => { if(e.target===lb) lb.classList.add('hidden'); };
 }
