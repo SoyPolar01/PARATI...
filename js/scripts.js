@@ -49,26 +49,10 @@ window.addEventListener('DOMContentLoaded', () => {
     } else if (stickersContainer) {
         initStickers();
     }
-
-    if (prevMonthBtn && nextMonthBtn) {
-        prevMonthBtn.onclick = () => {
-            currentViewDate.setMonth(currentViewDate.getMonth() - 1);
-            const minDate = new Date(2024, 10, 1);
-            if (currentViewDate < minDate) {
-                currentViewDate = new Date(2024, 10, 1);
-                alert("Este es el inicio de nuestros momentos especiales ❤️");
-            }
-            initCalendar();
-        };
-        nextMonthBtn.onclick = () => {
-            currentViewDate.setMonth(currentViewDate.getMonth() + 1);
-            const maxDate = new Date(2026, 4, 1);
-            if (currentViewDate > maxDate) {
-                currentViewDate = new Date(2026, 4, 1);
-                alert("Llegamos al final de nuestro calendario por ahora ❤️");
-            }
-            initCalendar();
-        };
+    
+    // Inicializar galería si estamos en esa página
+    if (document.getElementById('gallery-grid')) {
+        initGallery();
     }
 });
 
@@ -178,7 +162,7 @@ if (adminTrigger) {
 
 function checkAdminUI() {
     // Mostrar/ocultar elementos de admin
-    const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container');
+    const adminElements = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo, #gallery-upload-area, #btn-save-gallery-photo');
     adminElements.forEach(el => {
         isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden');
     });
@@ -567,3 +551,165 @@ function renderSticker(data, index) {
     };
     stickersContainer.appendChild(div);
 }
+
+// --- COMPRESIÓN DE IMÁGENES ---
+function compressImage(file, callback) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Comprimir como JPEG con calidad 0.7
+            const b64 = canvas.toDataURL('image/jpeg', 0.7);
+            callback(b64);
+        };
+    };
+}
+
+// Sobrescribir handleFile para usar compresión
+function handleFile(file, zone, targetInput) {
+    compressImage(file, (b64) => {
+        if (targetInput) targetInput.value = b64;
+        const previewImg = zone.querySelector('img') || document.createElement('img');
+        previewImg.src = b64;
+        previewImg.style.maxHeight = "100px";
+        previewImg.style.borderRadius = "10px";
+        previewImg.style.margin = "0 auto";
+        const infoText = zone.querySelector('p');
+        if (infoText) infoText.style.display = "none";
+        if (!zone.querySelector('img')) zone.appendChild(previewImg);
+        
+        // Si hay un botón de guardado específico para la galería, mostrarlo
+        const btnSaveGallery = document.getElementById('btn-save-gallery-photo');
+        if (btnSaveGallery) btnSaveGallery.classList.remove('hidden');
+    });
+}
+
+// --- LÓGICA DE LA GALERÍA DE FOTOS ---
+function initGallery() {
+    const galleryGrid = document.getElementById('gallery-grid');
+    const galleryDropZone = document.getElementById('gallery-drop-zone');
+    const galleryFileInput = document.getElementById('gallery-file-input');
+    const galleryPhotoUrlInput = document.getElementById('gallery-photo-url');
+    const btnSaveGalleryPhoto = document.getElementById('btn-save-gallery-photo');
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const closeLightbox = document.getElementById('close-lightbox');
+
+    if (!galleryGrid) return;
+    renderGallery();
+
+    if (galleryDropZone && galleryFileInput) {
+        galleryDropZone.onclick = () => { if(isAdmin) galleryFileInput.click(); };
+        galleryFileInput.onchange = (e) => {
+            if(e.target.files[0]) handleFile(e.target.files[0], galleryDropZone, galleryPhotoUrlInput);
+        };
+    }
+
+    if (btnSaveGalleryPhoto) {
+        btnSaveGalleryPhoto.onclick = () => {
+            if (!isAdmin) return;
+            const b64 = galleryPhotoUrlInput.value;
+            if (!b64) return alert("Selecciona una foto primero ✨");
+            
+            const photos = JSON.parse(localStorage.getItem('album-photos') || '[]');
+            photos.unshift({ id: Date.now(), url: b64 });
+            
+            try {
+                localStorage.setItem('album-photos', JSON.stringify(photos));
+                alert("Foto guardada en el álbum ❤️");
+                
+                // Limpiar zona de subida
+                galleryPhotoUrlInput.value = "";
+                const img = galleryDropZone.querySelector('img');
+                if (img) img.remove();
+                const p = galleryDropZone.querySelector('p');
+                if (p) p.style.display = "block";
+                btnSaveGalleryPhoto.classList.add('hidden');
+                
+                renderGallery();
+                if (typeof throwHeart === 'function') throwHeart();
+            } catch (e) {
+                alert("No queda espacio en el navegador para más fotos. Borra algunas o usa fotos más pequeñas.");
+            }
+        };
+    }
+
+    if (closeLightbox) {
+        closeLightbox.onclick = () => lightbox.classList.add('hidden');
+    }
+    if (lightbox) {
+        lightbox.onclick = (e) => { if(e.target === lightbox) lightbox.classList.add('hidden'); };
+    }
+}
+
+function renderGallery() {
+    const galleryGrid = document.getElementById('gallery-grid');
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    
+    if (!galleryGrid) return;
+    const photos = JSON.parse(localStorage.getItem('album-photos') || '[]');
+    galleryGrid.innerHTML = '';
+
+    if (photos.length === 0) {
+        galleryGrid.innerHTML = '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">El álbum está vacío. ¡Sube vuestra primera foto! ✨</p>';
+    }
+
+    photos.forEach(photo => {
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+        item.onclick = () => {
+            lightboxImg.src = photo.url;
+            lightbox.classList.remove('hidden');
+        };
+
+        const img = document.createElement('img');
+        img.src = photo.url;
+        img.alt = "Foto de nosotros";
+        
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-photo hidden';
+        delBtn.innerHTML = '×';
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (!isAdmin) return;
+            if (confirm("¿Borrar esta foto del álbum?")) {
+                const updatedPhotos = photos.filter(p => p.id !== photo.id);
+                localStorage.setItem('album-photos', JSON.stringify(updatedPhotos));
+                renderGallery();
+            }
+        };
+
+        item.appendChild(img);
+        item.appendChild(delBtn);
+        galleryGrid.appendChild(item);
+    });
+
+    checkAdminUI();
+}
+

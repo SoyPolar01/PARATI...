@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuestras Fotos - Para Ti ❤️</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body class="fade-in">
+    <div class="aurora-bg"></div>
+    <div class="blobs">
+        <div class="blob"></div>
+        <div class="blob"></div>
+        <div class="blob"></div>
+    </div>
+
+    <nav class="navbar">
+        <div class="logo">Para Ti ❤️</div>
+        <ul class="nav-links">
+            <li><a href="index.html">Inicio</a></li>
+            <li><a href="recuerdos.html">Corazones</a></li>
+            <li><a href="mensajes.html">Mensajes</a></li>
+            <li><a href="fotos.html">Fotos</a></li>
+        </ul>
+    </nav>
+
+    <main class="gallery-page">
+        <h2 class="section-title">Nuestro Álbum ❤️</h2>
+        <p class="section-subtitle">Momentos que guardo en mi corazón</p>
+
+        <div class="gallery-upload-container note-inputs hidden" id="gallery-upload-area">
+            <div id="gallery-drop-zone" class="drop-zone">
+                <p>Haz clic para subir una nueva foto al álbum ✨</p>
+                <input type="file" id="gallery-file-input" accept="image/*" hidden>
+            </div>
+            <button id="btn-save-gallery-photo" class="btn btn-primary hidden">Guardar en el álbum</button>
+            <input type="hidden" id="gallery-photo-url">
+        </div>
+
+        <div class="gallery-grid" id="gallery-grid">
+            <!-- Las fotos se cargarán aquí -->
+        </div>
+    </main>
+
+    <!-- Lightbox para ver fotos en grande -->
+    <div id="lightbox" class="modal-overlay hidden">
+        <span class="close-lightbox" id="close-lightbox">&times;</span>
+        <img class="lightbox-content" id="lightbox-img">
+    </div>
+
+    <footer class="main-footer">
+        <p>Hecho con <span id="admin-trigger" style="cursor: pointer;">❤️</span> para una persona muy especial para mí</p>
+    </footer>
+
+    <script src="js/scripts.js"></script>
+</body>
+</html>
