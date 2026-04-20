@@ -36,83 +36,101 @@ let selectedDateKey = "";
 const stickersContainer = document.getElementById('stickers-container');
 let stickers = JSON.parse(localStorage.getItem('stickers') || '[]');
 
-// --- BASE DE DATOS INDEXEDDB (ESPACIO AMPLIADO) ---
+// --- BASE DE DATOS INDEXEDDB (ESPACIO AMPLIADO V2) ---
 const DB_NAME = 'ParaTiDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'data';
+const DB_VERSION = 2; // Subimos versión para nueva estructura
+const STORE_DATA = 'data';
+const STORE_PHOTOS = 'photos';
 
 function openDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
         request.onupgradeneeded = (e) => {
             const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME);
-            }
+            if (!db.objectStoreNames.contains(STORE_DATA)) db.createObjectStore(STORE_DATA);
+            if (!db.objectStoreNames.contains(STORE_PHOTOS)) db.createObjectStore(STORE_PHOTOS, { keyPath: 'id' });
         };
         request.onsuccess = (e) => resolve(e.target.result);
         request.onerror = (e) => reject(e.target.error);
     });
 }
 
-async function dbGet(key, defaultValue = null) {
-    try {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.get(key);
-            request.onsuccess = () => resolve(request.result || defaultValue);
-            request.onerror = () => reject(request.error);
-        });
-    } catch (e) {
-        console.error("Error DB Get:", e);
-        return defaultValue;
-    }
+async function dbGet(storeName, key, defaultValue = null) {
+    const db = await openDB();
+    return new Promise((resolve) => {
+        const transaction = db.transaction(storeName, 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || defaultValue);
+        request.onerror = () => resolve(defaultValue);
+    });
 }
 
-async function dbSet(key, value) {
-    try {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.put(value, key);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-    } catch (e) {
-        console.error("Error DB Set:", e);
-    }
+async function dbSet(storeName, key, value) {
+    const db = await openDB();
+    const transaction = db.transaction(storeName, 'readwrite');
+    const store = transaction.objectStore(storeName);
+    store.put(value, key);
 }
 
-// --- MIGRACIÓN DE DATOS (DE LOCALSTORAGE A INDEXEDDB) ---
-async function migrateData() {
-    const isMigrated = localStorage.getItem('db-migrated');
-    if (isMigrated) return;
+async function dbAddPhoto(photoObj) {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_PHOTOS, 'readwrite');
+    const store = transaction.objectStore(STORE_PHOTOS);
+    store.add(photoObj);
+}
 
-    console.log("Migrando datos a IndexedDB...");
+async function dbGetAllPhotos() {
+    const db = await openDB();
+    return new Promise((resolve) => {
+        const transaction = db.transaction(STORE_PHOTOS, 'readonly');
+        const store = transaction.objectStore(STORE_PHOTOS);
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result.sort((a,b) => b.id - a.id));
+    });
+}
+
+async function dbDeletePhoto(id) {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_PHOTOS, 'readwrite');
+    const store = transaction.objectStore(STORE_PHOTOS);
+    store.delete(id);
+}
+
+// --- MIGRACIÓN Y LIMPIEZA ---
+async function migrateAndClean() {
+    const version = localStorage.getItem('db-version') || '0';
+    if (version === '2') return;
+
+    console.log("Optimizando almacenamiento...");
     
-    // Migrar fotos del álbum
+    // Migrar fotos del álbum (si estaban en el formato antiguo)
     const oldPhotos = localStorage.getItem('album-photos');
-    if (oldPhotos) await dbSet('album-photos', JSON.parse(oldPhotos));
+    if (oldPhotos) {
+        const photos = JSON.parse(oldPhotos);
+        for (const p of photos) {
+            await dbAddPhoto(p);
+        }
+        localStorage.removeItem('album-photos');
+    }
 
-    // Migrar notas del calendario (esto es más complejo por las claves dinámicas)
+    // Migrar notas del calendario
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key.startsWith('note-')) {
             const val = localStorage.getItem(key);
-            await dbSet(key, JSON.parse(val));
+            await dbSet(STORE_DATA, key, JSON.parse(val));
+            localStorage.removeItem(key);
+            i--; // Ajustar índice tras borrar
         }
     }
 
-    localStorage.setItem('db-migrated', 'true');
-    console.log("Migración completada.");
+    localStorage.setItem('db-version', '2');
 }
 
 // --- INICIALIZACIÓN ---
 window.addEventListener('DOMContentLoaded', async () => {
-    await migrateData();
+    await migrateAndClean();
     logVisit(); 
     checkAdminUI();
     initCalendar();
@@ -134,12 +152,10 @@ function logVisit() {
     const logs = JSON.parse(localStorage.getItem('visit-logs') || '[]');
     const newLog = {
         date: new Date().toLocaleString(),
-        ua: navigator.userAgent,
-        platform: navigator.platform,
-        vendor: navigator.vendor
+        ua: navigator.userAgent
     };
     logs.unshift(newLog);
-    if (logs.length > 50) logs.pop();
+    if (logs.length > 30) logs.pop();
     localStorage.setItem('visit-logs', JSON.stringify(logs));
 }
 
@@ -157,26 +173,20 @@ function renderAdminLogs() {
     let html = `
         <div class="admin-page-header">
             <button id="btn-back-home" class="btn btn-secondary">← Volver</button>
-            <h2 class="dancing-title">Historial de Visitas</h2>
+            <h2 class="dancing-title">Historial</h2>
         </div>
         <div class="logs-card">
             <div class="logs-table-wrapper">
                 <table>
-                    <thead>
-                        <tr><th>Fecha y Hora</th><th>Dispositivo / Navegador</th></tr>
-                    </thead>
+                    <thead><tr><th>Fecha</th><th>Dispositivo</th></tr></thead>
                     <tbody>`;
-    
     logs.forEach(log => {
         html += `<tr><td>${log.date}</td><td class="ua-text">${log.ua}</td></tr>`;
     });
-    
     html += `</tbody></table></div>
-        <button class="btn btn-primary" onclick="localStorage.removeItem('visit-logs'); location.reload();" style="margin-top: 20px;">Limpiar Historial</button>
+        <button class="btn btn-primary" onclick="localStorage.removeItem('visit-logs'); location.reload();" style="margin-top: 20px;">Limpiar</button>
     </div>`;
-    
     logsContainer.innerHTML = html;
-
     const btnBack = document.getElementById('btn-back-home');
     if (btnBack) btnBack.onclick = () => toggleAdminView(false);
 }
@@ -206,12 +216,8 @@ if (adminTrigger) {
             if (redHeartsGrid || blackHeartsGrid) initHearts();
             if (editableLetter) loadLetter(); 
             if (stickersContainer) initStickers();
-            
             const btnShowLogs = document.getElementById('btn-show-logs');
-            if (btnShowLogs) btnShowLogs.onclick = (e) => {
-                e.preventDefault();
-                toggleAdminView(true);
-            };
+            if (btnShowLogs) btnShowLogs.onclick = (e) => { e.preventDefault(); toggleAdminView(true); };
         } else {
             alert("Llave incorrecta.");
         }
@@ -288,11 +294,9 @@ async function initCalendar() {
         const div = document.createElement('div');
         div.className = 'calendar-day';
         const dateKey = `${year}-${month + 1}-${d}`;
-        
         if (isCurrentMonth && d === today) div.classList.add('today');
         
-        // Verificación asíncrona de notas
-        const noteData = await dbGet(`note-${dateKey}`);
+        const noteData = await dbGet(STORE_DATA, `note-${dateKey}`);
         if (noteData) div.classList.add('has-note');
         
         div.innerText = d;
@@ -304,24 +308,14 @@ async function initCalendar() {
         const startDate = new Date('2023-12-22');
         daysCountDisplay.innerText = Math.floor((now - startDate) / (86400000));
     }
+    
+    if (prevMonthBtn && nextMonthBtn) {
+        prevMonthBtn.onclick = () => { currentViewDate.setMonth(currentViewDate.getMonth() - 1); initCalendar(); };
+        nextMonthBtn.onclick = () => { currentViewDate.setMonth(currentViewDate.getMonth() + 1); initCalendar(); };
+    }
 }
 
-// --- SUBIDA DE ARCHIVOS (CALENDARIO) ---
-if (dropZone && fileInput) {
-    dropZone.onclick = () => { if(isAdmin) fileInput.click(); };
-    dropZone.ondragover = (e) => { e.preventDefault(); if(isAdmin) dropZone.classList.add('dragover'); };
-    dropZone.ondragleave = () => dropZone.classList.remove('dragover');
-    dropZone.ondrop = (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        if(isAdmin && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], dropZone, notePhotoUrlInput);
-    };
-    fileInput.onchange = (e) => {
-        if(e.target.files[0]) handleFile(e.target.files[0], dropZone, notePhotoUrlInput);
-    };
-}
-
-// --- COMPRESIÓN DE IMÁGENES ---
+// --- SUBIDA Y COMPRESIÓN ---
 function compressImage(file, callback) {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -343,8 +337,7 @@ function compressImage(file, callback) {
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            const b64 = canvas.toDataURL('image/jpeg', 0.7);
-            callback(b64);
+            callback(canvas.toDataURL('image/jpeg', 0.6)); // Bajamos un poco la calidad para asegurar fluidez
         };
     };
 }
@@ -354,15 +347,24 @@ function handleFile(file, zone, targetInput) {
         if (targetInput) targetInput.value = b64;
         const previewImg = zone.querySelector('img') || document.createElement('img');
         previewImg.src = b64;
-        previewImg.style.maxHeight = "100px";
-        previewImg.style.borderRadius = "10px";
-        previewImg.style.margin = "0 auto";
+        previewImg.style.maxHeight = "100px"; previewImg.style.borderRadius = "10px"; previewImg.style.margin = "0 auto";
         const infoText = zone.querySelector('p');
         if (infoText) infoText.style.display = "none";
         if (!zone.querySelector('img')) zone.appendChild(previewImg);
         const btnSaveGallery = document.getElementById('btn-save-gallery-photo');
         if (btnSaveGallery) btnSaveGallery.classList.remove('hidden');
     });
+}
+
+if (dropZone && fileInput) {
+    dropZone.onclick = () => { if(isAdmin) fileInput.click(); };
+    dropZone.ondragover = (e) => { e.preventDefault(); if(isAdmin) dropZone.classList.add('dragover'); };
+    dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+    dropZone.ondrop = (e) => {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+        if(isAdmin && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0], dropZone, notePhotoUrlInput);
+    };
+    fileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0], dropZone, notePhotoUrlInput); };
 }
 
 // --- CALIFICACIONES (CORAZONES) ---
@@ -378,17 +380,13 @@ function initRatings() {
                 document.getElementById(`note-${type}-rating`).value = val;
                 updateStarsVisual(container, val);
                 if (type === 'red') throwHeart();
-            } else if (val < currentVal) {
-                alert("¡Estos corazones no se pueden quitar! ❤️");
             }
         };
     });
 }
 
 function updateStarsVisual(container, value) {
-    container.querySelectorAll('span').forEach(s => {
-        s.classList.toggle('selected', parseInt(s.dataset.value) <= parseInt(value));
-    });
+    container.querySelectorAll('span').forEach(s => { s.classList.toggle('selected', parseInt(s.dataset.value) <= value); });
 }
 
 function renderRatingDisplay(container, type, value, dateKey) {
@@ -399,29 +397,19 @@ function renderRatingDisplay(container, type, value, dateKey) {
         span.innerText = emoji;
         span.style.opacity = i <= value ? '1' : '0.2';
         span.style.fontSize = '1.8rem';
-        span.style.cursor = i <= value ? 'default' : 'pointer';
-        span.style.transition = 'transform 0.2s';
-        if (i > value) {
-            span.onclick = () => markNoteHeart(dateKey, type, i);
-            span.onmouseover = () => span.style.transform = 'scale(1.2)';
-            span.onmouseout = () => span.style.transform = 'scale(1)';
-        }
+        if (i > value) span.onclick = () => markNoteHeart(dateKey, type, i);
         container.appendChild(span);
     }
 }
 
 async function markNoteHeart(dateKey, type, newValue) {
-    const data = await dbGet(`note-${dateKey}`, {});
+    const data = await dbGet(STORE_DATA, `note-${dateKey}`, {});
     const currentVal = type === 'red' ? (data.redRating || 0) : (data.blackRating || 0);
     if (newValue > currentVal) {
         if (type === 'red') { data.redRating = newValue; throwHeart(); } else { data.blackRating = newValue; }
-        await dbSet(`note-${dateKey}`, data);
-        const viewContainer = document.getElementById(`view-${type}-rating`);
-        if (viewContainer) renderRatingDisplay(viewContainer, type, newValue, dateKey);
-        const adminInput = document.getElementById(`note-${type}-rating`);
-        if (adminInput) adminInput.value = newValue;
-        const adminStars = document.querySelector(`.${type}-stars`);
-        if (adminStars) updateStarsVisual(adminStars, newValue);
+        await dbSet(STORE_DATA, `note-${dateKey}`, data);
+        renderGallery(); // Refrescar si es necesario
+        initCalendar();
     }
 }
 
@@ -430,17 +418,15 @@ initRatings();
 async function openNote(day, dateKey) {
     selectedDateKey = dateKey;
     const modalDate = document.getElementById('modal-date');
-    if (modalDate) modalDate.innerText = `Detalle del día ${day}`;
-
-    const data = await dbGet(`note-${dateKey}`, {});
+    if (modalDate) modalDate.innerText = `Día ${day}`;
+    const data = await dbGet(STORE_DATA, `note-${dateKey}`, {});
     const viewImg = document.getElementById('view-img');
     const viewMsg = document.getElementById('view-msg');
     const redRatingView = document.getElementById('view-red-rating');
     const blackRatingView = document.getElementById('view-black-rating');
     
     if (viewImg) { viewImg.src = data.photo || ""; viewImg.style.display = data.photo ? 'block' : 'none'; }
-    if (viewMsg) viewMsg.innerText = data.message || (isAdmin ? "No hay mensaje aún. ¡Escribe uno abajo!" : "No hay detalles para este día.");
-
+    if (viewMsg) viewMsg.innerText = data.message || (isAdmin ? "Escribe algo..." : "Sin detalles.");
     if (redRatingView) renderRatingDisplay(redRatingView, 'red', data.redRating || 0, dateKey);
     if (blackRatingView) renderRatingDisplay(blackRatingView, 'black', data.blackRating || 0, dateKey);
 
@@ -451,17 +437,6 @@ async function openNote(day, dateKey) {
         document.getElementById('note-black-rating').value = data.blackRating || 0;
         updateStarsVisual(document.querySelector('.red-stars'), data.redRating || 0);
         updateStarsVisual(document.querySelector('.black-stars'), data.blackRating || 0);
-        if (dropZone) {
-            const oldImg = dropZone.querySelector('img');
-            if (oldImg) oldImg.remove();
-            const infoText = dropZone.querySelector('p');
-            if (infoText) infoText.style.display = data.photo ? "none" : "block";
-            if (data.photo) {
-                const img = document.createElement('img');
-                img.src = data.photo; img.style.maxHeight = "100px"; img.style.borderRadius = "10px"; img.style.margin = "0 auto";
-                dropZone.appendChild(img);
-            }
-        }
     }
     if (noteModal) noteModal.classList.remove('hidden');
     checkAdminUI();
@@ -476,15 +451,14 @@ if (btnSaveNote) {
             redRating: document.getElementById('note-red-rating').value,
             blackRating: document.getElementById('note-black-rating').value
         };
-        await dbSet(`note-${selectedDateKey}`, data);
+        await dbSet(STORE_DATA, `note-${selectedDateKey}`, data);
         noteModal.classList.add('hidden');
         initCalendar();
     });
 }
+if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
 
-if (btnCloseModal) btnCloseModal.addEventListener('click', () => noteModal.classList.add('hidden'));
-
-// --- CORAZONES ---
+// --- CORAZONES Y STICKERS ---
 function initHearts() {
     if (!redHeartsGrid || !blackHeartsGrid) return;
     const redState = JSON.parse(localStorage.getItem('red-hearts-state') || '[]');
@@ -499,19 +473,14 @@ function renderHearts(container, type, state) {
         const heart = document.createElement('div');
         heart.className = `heart-item ${state.includes(i) ? 'marked' : 'unmarked'}`;
         heart.innerHTML = type === 'red' ? '❤️' : '🖤';
-        heart.onclick = () => toggleHeart(type, i, heart);
+        heart.onclick = () => {
+            if (state.includes(i)) return;
+            state.push(i); heart.className = 'heart-item marked';
+            if (type === 'red') throwHeart(); 
+            localStorage.setItem(`${type}-hearts-state`, JSON.stringify(state));
+        };
         container.appendChild(heart);
     }
-}
-
-function toggleHeart(type, index, element) {
-    const key = `${type}-hearts-state`;
-    let state = JSON.parse(localStorage.getItem(key) || '[]');
-    if (state.includes(index)) return;
-    state.push(index);
-    element.classList.add('marked'); element.classList.remove('unmarked');
-    if (type === 'red') throwHeart(); 
-    localStorage.setItem(key, JSON.stringify(state));
 }
 
 function throwHeart() {
@@ -523,21 +492,16 @@ function throwHeart() {
     setTimeout(() => h.remove(), 1200);
 }
 
-// --- LÓGICA DE STICKERS (PEGATINAS) ---
 function initStickers() {
     if (!stickersContainer) return;
-    stickersContainer.innerHTML = '<div class="sticker-instruction" id="sticker-instruction">Haz doble clic para añadir un mensaje ✨</div>';
-    stickers = JSON.parse(localStorage.getItem('stickers') || '[]');
-    stickers.forEach((sticker, index) => renderSticker(sticker, index));
+    stickersContainer.innerHTML = '<div class="sticker-instruction" id="sticker-instruction">Haz doble clic para un mensaje ✨</div>';
+    stickers.forEach((s, i) => renderSticker(s, i));
     stickersContainer.ondblclick = (e) => {
         if (e.target !== stickersContainer) return;
-        const text = prompt("Escribe tu mensaje:");
+        const text = prompt("Mensaje:");
         if (text) {
-            const colors = ['', 'pink', 'blue', 'green'];
-            const newSticker = { text: text, x: e.clientX - 100, y: e.clientY - 75, color: colors[Math.floor(Math.random() * colors.length)] };
-            stickers.push(newSticker);
-            localStorage.setItem('stickers', JSON.stringify(stickers));
-            renderSticker(newSticker, stickers.length - 1);
+            const s = { text, x: e.clientX-100, y: e.clientY-75, color: ['','pink','blue','green'][Math.floor(Math.random()*4)] };
+            stickers.push(s); localStorage.setItem('stickers', JSON.stringify(stickers)); renderSticker(s, stickers.length-1);
         }
     };
     checkAdminUI();
@@ -545,86 +509,54 @@ function initStickers() {
 
 function renderSticker(data, index) {
     const div = document.createElement('div');
-    div.className = `sticker ${data.color}`; div.style.left = data.x + 'px'; div.style.top = data.y + 'px'; div.innerText = data.text;
-    const delBtn = document.createElement('button');
-    delBtn.className = 'delete-sticker hidden'; delBtn.innerHTML = '×';
-    delBtn.onclick = (e) => {
-        e.stopPropagation(); if (!isAdmin) return;
-        stickers.splice(index, 1); localStorage.setItem('stickers', JSON.stringify(stickers)); initStickers();
-    };
-    div.appendChild(delBtn);
-
-    let isDragging = false;
-    let offsetX, offsetY;
-    div.onmousedown = (e) => { if (e.target === delBtn) return; isDragging = true; offsetX = e.clientX - div.offsetLeft; offsetY = e.clientY - div.offsetTop; div.style.zIndex = 1000; };
-    window.onmousemove = (e) => { if (isDragging) { data.x = e.clientX - offsetX; data.y = e.clientY - offsetY; div.style.left = data.x + 'px'; div.style.top = data.y + 'px'; } };
-    window.onmouseup = () => { if (isDragging) { isDragging = false; div.style.zIndex = 10; localStorage.setItem('stickers', JSON.stringify(stickers)); } };
+    div.className = `sticker ${data.color}`; div.style.left = data.x+'px'; div.style.top = data.y+'px'; div.innerText = data.text;
+    const del = document.createElement('button'); del.className = 'delete-sticker hidden'; del.innerHTML = '×';
+    del.onclick = (e) => { e.stopPropagation(); if (!isAdmin) return; stickers.splice(index, 1); localStorage.setItem('stickers', JSON.stringify(stickers)); initStickers(); };
+    div.appendChild(del);
+    let isDrag = false, ox, oy;
+    div.onmousedown = (e) => { if(e.target===del) return; isDrag=true; ox=e.clientX-div.offsetLeft; oy=e.clientY-div.offsetTop; div.style.zIndex=1000; };
+    window.onmousemove = (e) => { if(isDrag) { data.x=e.clientX-ox; data.y=e.clientY-oy; div.style.left=data.x+'px'; div.style.top=data.y+'px'; } };
+    window.onmouseup = () => { if(isDrag) { isDrag=false; div.style.zIndex=10; localStorage.setItem('stickers', JSON.stringify(stickers)); } };
     stickersContainer.appendChild(div);
 }
 
-// --- LÓGICA DE LA GALERÍA DE FOTOS (CON INDEXEDDB) ---
+// --- GALERÍA (INDEXEDDB V2) ---
 function initGallery() {
-    const galleryDropZone = document.getElementById('gallery-drop-zone');
-    const galleryFileInput = document.getElementById('gallery-file-input');
-    const galleryPhotoUrlInput = document.getElementById('gallery-photo-url');
-    const btnSaveGalleryPhoto = document.getElementById('btn-save-gallery-photo');
-    const lightbox = document.getElementById('lightbox');
-    const closeLightbox = document.getElementById('close-lightbox');
+    const gZone = document.getElementById('gallery-drop-zone');
+    const gFile = document.getElementById('gallery-file-input');
+    const gUrl = document.getElementById('gallery-photo-url');
+    const gSave = document.getElementById('btn-save-gallery-photo');
+    const lb = document.getElementById('lightbox'), lbi = document.getElementById('lightbox-img'), lbc = document.getElementById('close-lightbox');
 
     if (document.getElementById('gallery-grid')) renderGallery();
-
-    if (galleryDropZone && galleryFileInput) {
-        galleryDropZone.onclick = () => galleryFileInput.click();
-        galleryFileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0], galleryDropZone, galleryPhotoUrlInput); };
-    }
-
-    if (btnSaveGalleryPhoto) {
-        btnSaveGalleryPhoto.onclick = async () => {
-            const b64 = galleryPhotoUrlInput.value;
-            if (!b64) return alert("Selecciona una foto primero ✨");
-            const photos = await dbGet('album-photos', []);
-            photos.unshift({ id: Date.now(), url: b64 });
-            await dbSet('album-photos', photos);
-            alert("Foto guardada en el álbum ❤️");
-            galleryPhotoUrlInput.value = "";
-            const img = galleryDropZone.querySelector('img'); if (img) img.remove();
-            const p = galleryDropZone.querySelector('p'); if (p) p.style.display = "block";
-            btnSaveGalleryPhoto.classList.add('hidden');
-            renderGallery();
-            throwHeart();
+    if (gZone && gFile) { gZone.onclick = () => gFile.click(); gFile.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0], gZone, gUrl); }; }
+    if (gSave) {
+        gSave.onclick = async () => {
+            const b64 = gUrl.value; if (!b64) return alert("Selecciona foto ✨");
+            await dbAddPhoto({ id: Date.now(), url: b64 });
+            alert("¡Guardada! ❤️");
+            gUrl.value = ""; const img = gZone.querySelector('img'); if(img) img.remove();
+            gZone.querySelector('p').style.display = "block"; gSave.classList.add('hidden');
+            renderGallery(); throwHeart();
         };
     }
-
-    if (closeLightbox) closeLightbox.onclick = () => lightbox.classList.add('hidden');
-    if (lightbox) lightbox.onclick = (e) => { if(e.target === lightbox) lightbox.classList.add('hidden'); };
+    if (lbc) lbc.onclick = () => lb.classList.add('hidden');
+    if (lb) lb.onclick = (e) => { if(e.target===lb) lb.classList.add('hidden'); };
 }
 
 async function renderGallery() {
-    const galleryGrid = document.getElementById('gallery-grid');
-    const lightbox = document.getElementById('lightbox');
-    const lightboxImg = document.getElementById('lightbox-img');
-    if (!galleryGrid) return;
-    const photos = await dbGet('album-photos', []);
-    galleryGrid.innerHTML = '';
-    if (photos.length === 0) {
-        galleryGrid.innerHTML = '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">El álbum está vacío. ✨</p>';
-    }
-    photos.forEach(photo => {
-        const item = document.createElement('div');
-        item.className = 'gallery-item';
-        item.onclick = () => { lightboxImg.src = photo.url; lightbox.classList.remove('hidden'); };
-        const img = document.createElement('img'); img.src = photo.url;
-        const delBtn = document.createElement('button');
-        delBtn.className = 'delete-photo hidden'; delBtn.innerHTML = '×';
-        delBtn.onclick = async (e) => {
-            e.stopPropagation(); if (!isAdmin) return;
-            if (confirm("¿Borrar esta foto?")) {
-                const updatedPhotos = photos.filter(p => p.id !== photo.id);
-                await dbSet('album-photos', updatedPhotos);
-                renderGallery();
-            }
-        };
-        item.appendChild(img); item.appendChild(delBtn); galleryGrid.appendChild(item);
+    const grid = document.getElementById('gallery-grid');
+    const lb = document.getElementById('lightbox'), lbi = document.getElementById('lightbox-img');
+    if (!grid) return;
+    const photos = await dbGetAllPhotos();
+    grid.innerHTML = photos.length ? '' : '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">Álbum vacío. ✨</p>';
+    photos.forEach(p => {
+        const item = document.createElement('div'); item.className = 'gallery-item';
+        item.onclick = () => { lbi.src = p.url; lb.classList.remove('hidden'); };
+        const img = document.createElement('img'); img.src = p.url;
+        const del = document.createElement('button'); del.className = 'delete-photo hidden'; del.innerHTML = '×';
+        del.onclick = async (e) => { e.stopPropagation(); if(!isAdmin) return; if(confirm("¿Borrar?")) { await dbDeletePhoto(p.id); renderGallery(); } };
+        item.appendChild(img); item.appendChild(del); grid.appendChild(item);
     });
     checkAdminUI();
 }
