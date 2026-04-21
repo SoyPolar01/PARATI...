@@ -306,6 +306,40 @@ if (btnSaveNote) {
 }
 if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
 
+// --- LÓGICA DE CARGA DE IMÁGENES DEL CALENDARIO ---
+if (dropZone && fileInput) {
+    dropZone.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const p = dropZone.querySelector('p');
+            p.innerText = "Procesando...";
+            compressImage(file, (base64) => {
+                document.getElementById('note-photo-url').value = base64;
+                p.innerText = "¡Imagen lista! ✨";
+                setTimeout(() => { p.innerText = "Haz clic o arrastra una foto"; }, 2000);
+            });
+        }
+    };
+
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+    dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const p = dropZone.querySelector('p');
+            p.innerText = "Procesando...";
+            compressImage(file, (base64) => {
+                document.getElementById('note-photo-url').value = base64;
+                p.innerText = "¡Imagen lista! ✨";
+                setTimeout(() => { p.innerText = "Haz clic o arrastra una foto"; }, 2000);
+            });
+        }
+    };
+}
+
 // --- OTROS ---
 async function loadLetter() {
     const s = await fbGet('romantic-letter', "Hay personas que hacen que el mundo sea un lugar mejor...");
@@ -313,8 +347,46 @@ async function loadLetter() {
 }
 
 if (btnEdit && btnSave) {
-    btnEdit.onclick = () => { editableLetter.focus(); btnEdit.classList.add('hidden'); btnSave.classList.remove('hidden'); };
-    btnSave.onclick = async () => { await fbSet('romantic-letter', editableLetter.innerHTML); btnEdit.classList.remove('hidden'); btnSave.classList.add('hidden'); alert("Guardado ❤️"); };
+    const btnAddImg = document.getElementById('btn-add-img-letter');
+    const inputImg = document.getElementById('input-img-letter');
+
+    btnEdit.onclick = () => { 
+        editableLetter.focus(); 
+        btnEdit.classList.add('hidden'); 
+        btnSave.classList.remove('hidden'); 
+        if (btnAddImg) btnAddImg.classList.remove('hidden');
+    };
+
+    if (btnAddImg && inputImg) {
+        btnAddImg.onclick = () => inputImg.click();
+        inputImg.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            compressImage(file, (base64) => {
+                const img = document.createElement('img');
+                img.src = base64;
+                img.style.maxWidth = '100%';
+                img.style.borderRadius = '20px';
+                img.style.margin = '20px 0';
+                img.style.boxShadow = '0 10px 20px rgba(0,0,0,0.1)';
+                img.style.display = 'block';
+                
+                // Insertar en la posición del cursor o al final
+                editableLetter.appendChild(img);
+                editableLetter.appendChild(document.createElement('br'));
+            });
+            inputImg.value = "";
+        };
+    }
+
+    btnSave.onclick = async () => { 
+        await fbSet('romantic-letter', editableLetter.innerHTML); 
+        btnEdit.classList.remove('hidden'); 
+        btnSave.classList.add('hidden'); 
+        if (btnAddImg) btnAddImg.classList.add('hidden');
+        alert("¡Carta guardada con éxito! ❤️"); 
+    };
 }
 
 async function initHearts() {
