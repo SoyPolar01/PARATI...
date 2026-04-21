@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN Y ESTADO ---
+// --- CONFIGURACIÓN Y ESTADO (v1.0.1) ---
 const MASTER_KEY = "14042024";
 let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
 
