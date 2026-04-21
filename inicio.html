@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Para Ti ❤️ - Bienvenida</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Poppins:wght@300;400;600&family=Great+Vibes&display=swap" rel="stylesheet">
+</head>
+<body class="fade-in">
+    <div class="aurora-bg"></div>
+    <div class="blobs">
+        <div class="blob"></div>
+        <div class="blob"></div>
+        <div class="blob"></div>
+    </div>
+
+    <div id="home-page">
+        <nav class="navbar">
+            <div class="logo">Para Ti ❤️</div>
+            <div class="menu-toggle" id="mobile-menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html">Menú</a></li>
+                <li><a href="inicio.html">Inicio</a></li>
+                <li><a href="recuerdos.html">Corazones</a></li>
+                <li id="nav-logs-container" class="hidden"><a href="#" id="btn-show-logs">Logs</a></li>
+                <li><a href="calendario.html">Calendario</a></li>
+                <li><a href="mensajes.html">Mensajes</a></li>
+                <li><a href="fotos.html">Fotos</a></li>
+                <li><a href="carta.html">Carta</a></li>
+            </ul>
+        </nav>
+
+        <div id="main-content">
+            <section id="hero" class="hero">
+                <div class="hero-content">
+                    <h2 class="animate-text">Para una persona muy especial para mí</h2>
+                    <h1 class="elegant-title">¡Buenos Días!</h1>
+                    <p class="hero-desc">He creado este rincón para ti. Espero que te guste.</p>
+                    <div class="hero-btns">
+                        <a href="index.html" class="btn btn-primary">Volver al Menú</a>
+                        <a href="carta.html" class="btn btn-secondary">Leer mensaje</a>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <footer class="main-footer">
+            <p>Hecho con <span id="admin-trigger" style="cursor: pointer;">❤️</span> para una persona muy especial para mí</p>
+        </footer>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <script src="js/scripts.js"></script>
+</body>
+</html>

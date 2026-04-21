@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Para alguien especial</title>
+    <title>Para Ti ❤️ - Menú</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Poppins:wght@300;400;600&family=Great+Vibes&display=swap" rel="stylesheet">
 </head>
@@ -15,7 +15,6 @@
         <div class="blob"></div>
     </div>
 
-    <!-- PÁGINA DE INICIO (HOME) -->
     <div id="home-page">
         <nav class="navbar">
             <div class="logo">Para Ti ❤️</div>
@@ -25,125 +24,65 @@
                 <span class="bar"></span>
             </div>
             <ul class="nav-links">
-                <li><a href="#hero">Inicio</a></li>
+                <li><a href="index.html">Menú</a></li>
+                <li><a href="inicio.html">Inicio</a></li>
                 <li><a href="recuerdos.html">Corazones</a></li>
                 <li id="nav-logs-container" class="hidden"><a href="#" id="btn-show-logs">Logs</a></li>
-                <li><a href="#calendar">Calendario</a></li>
+                <li><a href="calendario.html">Calendario</a></li>
                 <li><a href="mensajes.html">Mensajes</a></li>
                 <li><a href="fotos.html">Fotos</a></li>
-                <li><a href="#message">Carta</a></li>
+                <li><a href="carta.html">Carta</a></li>
             </ul>
         </nav>
 
         <div id="main-content">
+            <section class="menu-section">
+                <h1 class="menu-title">Para Ti ❤️</h1>
+                <p class="menu-subtitle">He preparado este espacio con mucho cariño. Elige a dónde quieres ir hoy.</p>
 
-            <section id="hero" class="hero">
-            <div class="hero-content">
-                <h2 class="animate-text">Para una persona muy especial para mí</h2>
-                <h1 class="elegant-title">¡Buenos Días!</h1>
-                <p class="hero-desc">He creado este rincón para ti. Espero que te guste.</p>
-                <div class="hero-btns">
-                    <a href="#message" class="btn btn-primary">Leer mensaje</a>
-                    <a href="recuerdos.html" class="btn btn-secondary">Ver corazones</a>
-                </div>
-            </div>
-        </section>
+                <div class="menu-grid">
+                    <a href="inicio.html" class="menu-card">
+                        <div class="icon">✨</div>
+                        <h3>Inicio</h3>
+                        <p>El mensaje de bienvenida y buenos deseos para empezar el día.</p>
+                    </a>
 
-        <!-- SECCIÓN CALENDARIO -->
-        <section id="calendar" class="calendar-section">
-            <h2 class="section-title">Fechas importantes</h2>
-            <div class="calendar-container">
-                <div class="calendar-card">
-                    <div class="calendar-header">
-                        <button id="prev-month" class="btn-nav">‹</button>
-                        <h3 id="current-month-year">...</h3>
-                        <button id="next-month" class="btn-nav">›</button>
-                    </div>
-                    <div class="calendar-grid" id="calendar-grid">
-                        <!-- Generado por JS -->
-                    </div>
-                </div>
-                <div class="calendar-info">
-                    <h3>Días transcurridos</h3>
-                    <p>Un contador de los días especiales que han pasado desde que empezamos a compartir momentos.</p>
-                    <div class="countdown-display">
-                        <span id="days-count">...</span> días
-                    </div>
-                </div>
-            </div>
-        </section>
+                    <a href="calendario.html" class="menu-card">
+                        <div class="icon">📅</div>
+                        <h3>Calendario</h3>
+                        <p>Nuestras fechas importantes, recuerdos diarios y contador de tiempo.</p>
+                    </a>
 
-        <section id="message" class="message-section">
-            <div class="message-card-full">
-                <h2 class="dancing-title">Un mensaje especial</h2>
-                <div class="letter-actions hidden">
-                    <button id="btn-edit-letter" class="btn-icon">✎ Editar</button>
-                    <button id="btn-save-letter" class="btn-icon hidden">💾 Guardar</button>
-                </div>
-                <div id="editable-letter" class="scroll-msg">
-                    <p>Hay personas que hacen que el mundo sea un lugar mejor solo con estar en él. Gracias por ser parte de mi vida y por todos los momentos que compartimos.</p>
-                </div>
-                <p class="signature">Para una persona muy especial para mí.</p>
-            </div>
-        </section>
+                    <a href="recuerdos.html" class="menu-card">
+                        <div class="icon">❤️</div>
+                        <h3>Corazones</h3>
+                        <p>Un espacio interactivo lleno de amor y pequeños detalles.</p>
+                    </a>
 
-        <!-- MODAL PARA DETALLES DEL CALENDARIO -->
-        <div id="note-modal" class="modal-overlay hidden">
-            <div class="modal-content">
-                <h2 class="dancing-title" id="modal-date">Detalle del día</h2>
-                
-                <!-- ÁREA DE VISUALIZACIÓN (Lo que todos ven) -->
-                <div id="note-view" class="note-view-area">
-                    <img id="view-img" src="" alt="Imagen del día" style="display:none; width:100%; border-radius:20px; margin-bottom:1.5rem; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
-                    <p id="view-msg" style="white-space: pre-wrap; font-size: 1.1rem; line-height: 1.6; color: var(--dark); margin-bottom: 1rem;"></p>
-                    
-                    <!-- Visualización de Calificaciones -->
-                    <div id="view-ratings" class="view-ratings" style="margin-bottom: 1.5rem; display: flex; justify-content: center; gap: 20px;">
-                        <div id="view-red-rating" class="rating-display"></div>
-                        <div id="view-black-rating" class="rating-display"></div>
-                    </div>
-                </div>
+                    <a href="mensajes.html" class="menu-card">
+                        <div class="icon">✉️</div>
+                        <h3>Mensajes</h3>
+                        <p>Notas adhesivas y pequeños mensajes que nos alegran.</p>
+                    </a>
 
-                <!-- ÁREA DE EDICIÓN (Solo visible para el administrador) -->
-                <div class="note-inputs hidden">
-                    <hr style="margin: 2rem 0; border: none; border-top: 1px dashed #ddd;">
-                    <p style="font-size: 0.8rem; color: var(--secondary); margin-bottom: 1rem; font-weight: 600;">MODO EDICIÓN</p>
-                    
-                    <!-- Selectores de Calificación -->
-                    <div class="rating-selectors" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 10px; text-align: left;">
-                        <label>Calificación Roja (1-5):</label>
-                        <div class="star-rating red-stars" data-type="red">
-                            <span data-value="1">❤️</span><span data-value="2">❤️</span><span data-value="3">❤️</span><span data-value="4">❤️</span><span data-value="5">❤️</span>
-                        </div>
-                        <input type="hidden" id="note-red-rating" value="0">
+                    <a href="fotos.html" class="menu-card">
+                        <div class="icon">📸</div>
+                        <h3>Fotos</h3>
+                        <p>Nuestra galería de momentos especiales guardados para siempre.</p>
+                    </a>
 
-                        <label>Calificación Negra (1-5):</label>
-                        <div class="star-rating black-stars" data-type="black">
-                            <span data-value="1">🖤</span><span data-value="2">🖤</span><span data-value="3">🖤</span><span data-value="4">🖤</span><span data-value="5">🖤</span>
-                        </div>
-                        <input type="hidden" id="note-black-rating" value="0">
-                    </div>
-                    <div id="drop-zone" class="drop-zone">
-                        <p>Haz clic o arrastra una foto</p>
-                        <input type="file" id="file-input" accept="image/*" hidden>
-                    </div>
-                    <input type="hidden" id="note-photo-url">
-                    
-                    <label>Escribir mensaje:</label>
-                    <textarea id="note-message" placeholder="Escribe el mensaje que aparecerá en este día..."></textarea>
+                    <a href="carta.html" class="menu-card">
+                        <div class="icon">📜</div>
+                        <h3>Carta</h3>
+                        <p>Un mensaje más profundo y especial escrito solo para ti.</p>
+                    </a>
                 </div>
-
-                <div class="modal-btns">
-                    <button id="btn-save-note" class="btn btn-primary hidden">Guardar Detalle</button>
-                    <button id="btn-close-modal" class="btn btn-secondary">Cerrar</button>
-                </div>
-            </div>
+            </section>
         </div>
 
         <footer class="main-footer">
             <p>Hecho con <span id="admin-trigger" style="cursor: pointer;">❤️</span> para una persona muy especial para mí</p>
         </footer>
-    </div>
     </div>
 
     <!-- Firebase SDKs -->
@@ -152,5 +91,4 @@
     
     <script src="js/scripts.js"></script>
 </body>
-
 </html>

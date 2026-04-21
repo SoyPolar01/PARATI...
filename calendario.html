@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Para Ti ❤️ - Calendario</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Poppins:wght@300;400;600&family=Great+Vibes&display=swap" rel="stylesheet">
+</head>
+<body class="fade-in">
+    <div class="aurora-bg"></div>
+    <div class="blobs">
+        <div class="blob"></div>
+        <div class="blob"></div>
+        <div class="blob"></div>
+    </div>
+
+    <div id="home-page">
+        <nav class="navbar">
+            <div class="logo">Para Ti ❤️</div>
+            <div class="menu-toggle" id="mobile-menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html">Menú</a></li>
+                <li><a href="inicio.html">Inicio</a></li>
+                <li><a href="recuerdos.html">Corazones</a></li>
+                <li id="nav-logs-container" class="hidden"><a href="#" id="btn-show-logs">Logs</a></li>
+                <li><a href="calendario.html">Calendario</a></li>
+                <li><a href="mensajes.html">Mensajes</a></li>
+                <li><a href="fotos.html">Fotos</a></li>
+                <li><a href="carta.html">Carta</a></li>
+            </ul>
+        </nav>
+
+        <div id="main-content" style="padding-top: 100px;">
+            <!-- SECCIÓN CALENDARIO -->
+            <section id="calendar" class="calendar-section">
+                <h2 class="section-title" style="text-align: center; margin-bottom: 3rem; font-family: 'Great Vibes', cursive; font-size: 4rem; color: var(--primary);">Fechas importantes</h2>
+                <div class="calendar-container">
+                    <div class="calendar-card">
+                        <div class="calendar-header">
+                            <button id="prev-month" class="btn-nav">‹</button>
+                            <h3 id="current-month-year">...</h3>
+                            <button id="next-month" class="btn-nav">›</button>
+                        </div>
+                        <div class="calendar-grid" id="calendar-grid">
+                            <!-- Generado por JS -->
+                        </div>
+                    </div>
+                    <div class="calendar-info">
+                        <h3 style="font-family: 'Dancing Script', cursive; font-size: 2.2rem; color: var(--primary);">Días transcurridos</h3>
+                        <p>Un contador de los días especiales que han pasado desde que empezamos a compartir momentos.</p>
+                        <div class="countdown-display">
+                            <span id="days-count">...</span> días
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- MODAL PARA DETALLES DEL CALENDARIO -->
+        <div id="note-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h2 class="dancing-title" id="modal-date">Detalle del día</h2>
+                
+                <div id="note-view" class="note-view-area">
+                    <img id="view-img" src="" alt="Imagen del día" style="display:none; width:100%; border-radius:20px; margin-bottom:1.5rem; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
+                    <p id="view-msg" style="white-space: pre-wrap; font-size: 1.1rem; line-height: 1.6; color: var(--dark); margin-bottom: 1rem;"></p>
+                    
+                    <div id="view-ratings" class="view-ratings" style="margin-bottom: 1.5rem; display: flex; justify-content: center; gap: 20px;">
+                        <div id="view-red-rating" class="rating-display"></div>
+                        <div id="view-black-rating" class="rating-display"></div>
+                    </div>
+                </div>
+
+                <div class="note-inputs hidden">
+                    <hr style="margin: 2rem 0; border: none; border-top: 1px dashed #ddd;">
+                    <p style="font-size: 0.8rem; color: var(--secondary); margin-bottom: 1rem; font-weight: 600;">MODO EDICIÓN</p>
+                    
+                    <div class="rating-selectors" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 10px; text-align: left;">
+                        <label>Calificación Roja (1-5):</label>
+                        <div class="star-rating red-stars" data-type="red">
+                            <span data-value="1">❤️</span><span data-value="2">❤️</span><span data-value="3">❤️</span><span data-value="4">❤️</span><span data-value="5">❤️</span>
+                        </div>
+                        <input type="hidden" id="note-red-rating" value="0">
+
+                        <label>Calificación Negra (1-5):</label>
+                        <div class="star-rating black-stars" data-type="black">
+                            <span data-value="1">🖤</span><span data-value="2">🖤</span><span data-value="3">🖤</span><span data-value="4">🖤</span><span data-value="5">🖤</span>
+                        </div>
+                        <input type="hidden" id="note-black-rating" value="0">
+                    </div>
+                    <div id="drop-zone" class="drop-zone">
+                        <p>Haz clic o arrastra una foto</p>
+                        <input type="file" id="file-input" accept="image/*" hidden>
+                    </div>
+                    <input type="hidden" id="note-photo-url">
+                    
+                    <label>Escribir mensaje:</label>
+                    <textarea id="note-message" placeholder="Escribe el mensaje que aparecerá en este día..."></textarea>
+                </div>
+
+                <div class="modal-btns">
+                    <button id="btn-save-note" class="btn btn-primary hidden">Guardar Detalle</button>
+                    <button id="btn-close-modal" class="btn btn-secondary">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <footer class="main-footer">
+            <p>Hecho con <span id="admin-trigger" style="cursor: pointer;">❤️</span> para una persona muy especial para mí</p>
+        </footer>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <script src="js/scripts.js"></script>
+</body>
+</html>
