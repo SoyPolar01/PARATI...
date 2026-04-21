@@ -1,6 +1,6 @@
 // --- CONFIGURACIÓN Y ESTADO ---
 const MASTER_KEY = "14042024";
-let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
+let isAdmin = false;
 
 // --- CONFIGURACIÓN FIREBASE ---
 const firebaseConfig = {
