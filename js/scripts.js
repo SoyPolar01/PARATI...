@@ -154,7 +154,7 @@ function logVisit() {
 }
 
 function checkAdminUI() {
-    const elms = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo, .gallery-upload-container');
+    const elms = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo');
     elms.forEach(el => {
         if (isAdmin) {
             el.classList.remove('hidden');
@@ -162,6 +162,11 @@ function checkAdminUI() {
             el.classList.add('hidden');
         }
     });
+
+    // La galería siempre debe mostrar el área de subida para todos
+    const galleryUpload = document.querySelector('.gallery-upload-container');
+    if (galleryUpload) galleryUpload.classList.remove('hidden');
+
     if (editableLetter) editableLetter.contentEditable = isAdmin;
     
     if (isAdmin) {
