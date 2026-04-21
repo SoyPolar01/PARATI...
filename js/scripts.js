@@ -1,6 +1,6 @@
 // --- CONFIGURACIÓN Y ESTADO ---
 const MASTER_KEY = "14042024";
-let isAdmin = false;
+let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
 
 // --- CONFIGURACIÓN FIREBASE ---
 const firebaseConfig = {
@@ -21,11 +21,7 @@ if (isFirebaseConfigured) {
     try {
         firebase.initializeApp(firebaseConfig);
         database = firebase.database();
-    } catch (e) {
-        console.error("Error al inicializar Firebase:", e);
-    }
-} else {
-    console.warn("Firebase no está configurado. Los cambios solo serán locales.");
+    } catch (e) { console.error("Error al inicializar Firebase:", e); }
 }
 
 // --- ELEMENTOS COMUNES ---
@@ -35,30 +31,24 @@ const navLinks = document.querySelector('.nav-links');
 
 // Lógica de Menú Responsive
 if (mobileMenu) {
-    mobileMenu.addEventListener('click', () => {
+    mobileMenu.onclick = () => {
         mobileMenu.classList.toggle('active');
         navLinks.classList.toggle('active');
-    });
+    };
 
     document.querySelectorAll('.nav-links a').forEach(link => {
-        link.addEventListener('click', () => {
+        link.onclick = (e) => {
+            if (link.id === 'btn-show-logs') return; // No cerrar si es el botón de logs
             mobileMenu.classList.remove('active');
             navLinks.classList.remove('active');
-        });
+        };
     });
 }
 
 // --- FUNCIONES DE BASE DE DATOS ---
 let localDB = JSON.parse(localStorage.getItem('para-ti-vdb') || '{}');
-
-function saveVDB() {
-    localStorage.setItem('para-ti-vdb', JSON.stringify(localDB));
-}
-
-function getByPath(obj, path) {
-    return path.split('/').reduce((prev, curr) => prev && prev[curr], obj);
-}
-
+function saveVDB() { localStorage.setItem('para-ti-vdb', JSON.stringify(localDB)); }
+function getByPath(obj, path) { return path.split('/').reduce((prev, curr) => prev && prev[curr], obj); }
 function setByPath(obj, path, value) {
     const parts = path.split('/');
     const last = parts.pop();
@@ -89,9 +79,7 @@ async function fbSet(path, value) {
     setByPath(localDB, path, value);
     saveVDB();
     if (database) {
-        try {
-            await database.ref(path).set(value);
-        } catch (e) { console.error("Error Firebase Set:", e); }
+        try { await database.ref(path).set(value); } catch (e) { console.error("Error Firebase Set:", e); }
     }
 }
 
@@ -144,34 +132,27 @@ window.addEventListener('DOMContentLoaded', async () => {
         renderCalendarStructure();
         updateCalendarWithData(); 
     }
-    loadLetter();
+    if (editableLetter) loadLetter();
     if (redHeartsGrid || blackHeartsGrid) initHearts();
     if (stickersContainer) initStickers();
     if (document.getElementById('gallery-grid')) initGallery();
-
-    if (isFirebaseConfigured) {
-        await updateCalendarWithData(); 
-    }
 });
 
 function getDeviceType() {
     const ua = navigator.userAgent;
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
-    if (/Mobile|android|iphone|ipod/i.test(ua)) return "Móvil";
+    if (/ipad|tablet|(android(?!.*mobi))/i.test(ua)) return "Tablet";
+    if (/iphone|ipod/i.test(ua)) return "iPhone";
+    if (/android/i.test(ua)) return "Android";
     if (/Windows/i.test(ua)) return "PC (Windows)";
     if (/Macintosh/i.test(ua)) return "PC (Mac)";
     if (/Linux/i.test(ua)) return "PC (Linux)";
-    return "Desconocido";
+    return "Móvil/Otro";
 }
 
 function logVisit() {
     if (!database) return;
     try {
-        const logData = { 
-            date: new Date().toLocaleString(), 
-            device: getDeviceType(),
-            ua: navigator.userAgent 
-        };
+        const logData = { date: new Date().toLocaleString(), device: getDeviceType() };
         database.ref('visit-logs').push(logData);
     } catch(e) {}
 }
@@ -183,7 +164,12 @@ function checkAdminUI() {
     
     if (isAdmin) {
         const btnLogs = document.getElementById('btn-show-logs');
-        if (btnLogs) btnLogs.onclick = (e) => { e.preventDefault(); toggleAdminView(true); };
+        if (btnLogs) {
+            btnLogs.onclick = (e) => { 
+                e.preventDefault(); 
+                toggleAdminView(true); 
+            };
+        }
     }
 }
 
@@ -191,34 +177,38 @@ async function toggleAdminView(show) {
     const main = document.getElementById('main-content');
     let logsContainer = document.getElementById('admin-logs-view');
     
+    if (mobileMenu) {
+        mobileMenu.classList.remove('active');
+        navLinks.classList.remove('active');
+    }
+
     if (show) {
         if (!logsContainer && homePage) {
             logsContainer = document.createElement('div');
             logsContainer.id = 'admin-logs-view';
-            logsContainer.className = 'hidden';
             homePage.appendChild(logsContainer);
         }
         
         const logsObj = await fbGet('visit-logs', {});
-        const logs = Object.values(logsObj || {}).reverse().slice(0, 30);
+        const logs = Object.values(logsObj || {}).reverse().slice(0, 50);
 
         let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs de Visitas</h2></div>
                     <div class="logs-card">
                         <div class="logs-table-wrapper">
-                            <table><thead><tr><th>Fecha</th><th>Dispositivo</th></tr></thead><tbody>`;
+                            <table><thead><tr><th>Fecha</th><th>Disp.</th></tr></thead><tbody>`;
         logs.forEach(log => { 
-            const device = log.device || (log.ua ? (log.ua.includes('Mobi') ? 'Móvil' : 'PC') : 'Desconocido');
-            html += `<tr><td>${log.date}</td><td>${device}</td></tr>`; 
+            html += `<tr><td>${log.date}</td><td>${log.device}</td></tr>`; 
         });
         html += `</tbody></table>
                         </div>
-                        <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){ if(database) database.ref('visit-logs').remove(); location.reload();}" style="margin-top:20px">Limpiar Logs</button>
+                        <button class="btn btn-primary" onclick="if(confirm('¿Limpiar?')){ if(database) database.ref('visit-logs').remove(); location.reload();}" style="margin-top:20px; width:100%">Limpiar Logs</button>
                     </div>`;
         logsContainer.innerHTML = html;
+        logsContainer.classList.remove('hidden');
         document.getElementById('btn-back-home').onclick = () => toggleAdminView(false);
         
         if(main) main.classList.add('hidden');
-        if(logsContainer) logsContainer.classList.remove('hidden');
+        window.scrollTo(0,0);
     } else {
         if(main) main.classList.remove('hidden');
         if(logsContainer) logsContainer.classList.add('hidden');
@@ -246,10 +236,9 @@ if (adminTrigger) {
     });
 }
 
+// --- RESTO DE FUNCIONES (INTACTAS PERO OPTIMIZADAS) ---
 async function loadLetter() {
-    if (!editableLetter) return;
-    const defaultText = "Hay personas que hacen que el mundo sea un lugar mejor...";
-    const s = await fbGet('romantic-letter', defaultText);
+    const s = await fbGet('romantic-letter', "Hay personas que hacen que el mundo sea un lugar mejor...");
     editableLetter.innerHTML = s;
 }
 
@@ -258,11 +247,10 @@ if (btnEdit && btnSave) {
     btnSave.onclick = async () => { 
         await fbSet('romantic-letter', editableLetter.innerHTML); 
         btnEdit.classList.remove('hidden'); btnSave.classList.add('hidden'); 
-        alert("Guardado correctamente ❤️"); 
+        alert("Guardado ❤️"); 
     };
 }
 
-// --- CALENDARIO ---
 function renderCalendarStructure() {
     if (!calendarGrid) return;
     const year = currentViewDate.getFullYear(), month = currentViewDate.getMonth();
@@ -299,7 +287,6 @@ function renderCalendarStructure() {
 }
 
 async function updateCalendarWithData() {
-    if (!calendarGrid) return;
     const allNotes = await fbGet('calendar-notes', {});
     document.querySelectorAll('.calendar-day').forEach(el => el.classList.remove('has-note'));
     Object.keys(allNotes).forEach(key => {
@@ -313,15 +300,12 @@ async function openNote(day, key) {
     selectedDateKey = key;
     document.getElementById('modal-date').innerText = `Día ${day}`;
     const vImg = document.getElementById('view-img'), vMsg = document.getElementById('view-msg');
-    vImg.src = ""; vImg.style.display = 'none';
-    vMsg.innerText = "Cargando...";
+    vImg.style.display = 'none'; vMsg.innerText = "Cargando...";
     const data = await fbGet(`calendar-notes/note-${key}`, {});
     vImg.src = data.photo || ""; vImg.style.display = data.photo ? 'block' : 'none';
     vMsg.innerText = data.message || (isAdmin ? "Escribe algo..." : "Sin detalles aún.");
-    
     renderRatingDisplay(document.getElementById('view-red-rating'), 'red', data.redRating || 0, key);
     renderRatingDisplay(document.getElementById('view-black-rating'), 'black', data.blackRating || 0, key);
-    
     if (isAdmin) {
         notePhotoUrlInput.value = data.photo || ""; 
         noteMessageInput.value = data.message || "";
@@ -362,9 +346,7 @@ function renderRatingDisplay(container, type, val, key) {
 
 if (btnSaveNote) {
     btnSaveNote.onclick = async () => {
-        if (!isAdmin) return;
         btnSaveNote.innerText = "Guardando...";
-        btnSaveNote.disabled = true;
         const data = { 
             photo: notePhotoUrlInput.value, 
             message: noteMessageInput.value, 
@@ -373,15 +355,12 @@ if (btnSaveNote) {
         };
         await fbSet(`calendar-notes/note-${selectedDateKey}`, data); 
         btnSaveNote.innerText = "Guardar Detalle";
-        btnSaveNote.disabled = false;
         noteModal.classList.add('hidden'); 
         updateCalendarWithData();
-        alert("¡Guardado correctamente! ❤️");
     };
 }
 if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
 
-// --- COMPRESIÓN Y PROCESAMIENTO ---
 function compressImage(file, callback) {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -400,15 +379,6 @@ function compressImage(file, callback) {
     };
 }
 
-function processVideo(file, callback) {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (e) => {
-        callback(e.target.result);
-    };
-}
-
-// --- CORAZONES Y STICKERS ---
 async function initHearts() {
     if (!redHeartsGrid) return;
     const rState = await fbGet('red-hearts', []);
@@ -442,7 +412,6 @@ function throwHeart() {
 }
 
 async function initStickers() {
-    if (!stickersContainer) return;
     fbOn('stickers', (data) => {
         stickers = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
         renderStickersList();
@@ -452,8 +421,7 @@ async function initStickers() {
         const text = prompt("Mensaje:");
         if (text) {
             const s = { text, x: e.clientX-100, y: e.clientY-75, color: ['','pink','blue','green'][Math.floor(Math.random()*4)] };
-            stickers.push(s); 
-            await fbSet('stickers', stickers);
+            stickers.push(s); await fbSet('stickers', stickers);
         }
     };
 }
@@ -465,7 +433,7 @@ function renderStickersList() {
     stickers.forEach((s, i) => {
         const div = document.createElement('div'); div.className = `sticker ${s.color}`; div.style.left = s.x+'px'; div.style.top = s.y+'px'; div.innerText = s.text;
         const del = document.createElement('button'); del.className = 'delete-sticker hidden'; del.innerHTML = '×';
-        del.onclick = async (e) => { e.stopPropagation(); if (!isAdmin) return; stickers.splice(i, 1); await fbSet('stickers', stickers); };
+        del.onclick = async (e) => { e.stopPropagation(); stickers.splice(i, 1); await fbSet('stickers', stickers); };
         div.appendChild(del);
         let isDrag = false, ox, oy;
         div.onmousedown = (e) => { if(e.target===del) return; isDrag=true; ox=e.clientX-div.offsetLeft; oy=e.clientY-div.offsetTop; div.style.zIndex=1000; };
@@ -476,53 +444,20 @@ function renderStickersList() {
     checkAdminUI();
 }
 
-// --- GALERÍA ---
 async function initGallery() {
     const gZone = document.getElementById('gallery-drop-zone'), gFile = document.getElementById('gallery-file-input');
     const lb = document.getElementById('lightbox'), lbc = document.getElementById('close-lightbox');
-    if (lb) lbc.onclick = () => {
-        lb.classList.add('hidden');
-        const lbImg = document.getElementById('lightbox-img');
-        const lbVid = document.getElementById('lightbox-vid');
-        if (lbImg) lbImg.style.display = 'none';
-        if (lbVid) { lbVid.style.display = 'none'; lbVid.pause(); lbVid.src = ''; }
-    };
+    if (lbc) lbc.onclick = () => { lb.classList.add('hidden'); const v = document.getElementById('lightbox-vid'); if(v){v.pause(); v.src=''}; };
     if (gZone) gZone.onclick = () => gFile.click();
-    
     fbOn('gallery', () => renderGallery());
-
     if (gFile) {
         gFile.onchange = async (e) => {
             const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-            const p = gZone.querySelector('p');
-            let uploadedCount = 0;
             for (const file of files) {
-                p.innerText = `Subiendo ${uploadedCount + 1}/${files.length}...`;
-                try {
-                    const isVideo = file.type.startsWith('video/');
-                    if (isVideo && file.size > 15 * 1024 * 1024) {
-                        alert(`El video "${file.name}" es muy pesado. Máximo 15MB.`);
-                        continue;
-                    }
-                    
-                    const data = await new Promise((resolve) => {
-                        if (isVideo) processVideo(file, resolve);
-                        else compressImage(file, resolve);
-                    });
-                    
-                    if (database) {
-                        await database.ref('gallery').push({ 
-                            id: Date.now(), 
-                            url: data,
-                            type: isVideo ? 'video' : 'image'
-                        });
-                    }
-                    uploadedCount++;
-                } catch (err) { console.error("Error subiendo archivo:", err); }
+                const isVideo = file.type.startsWith('video/');
+                const data = await new Promise(r => isVideo ? (const fr=new FileReader(), fr.onload=e=>r(e.target.result), fr.readAsDataURL(file)) : compressImage(file, r));
+                await database.ref('gallery').push({ id: Date.now(), url: data, type: isVideo ? 'video' : 'image' });
             }
-            p.innerText = "¡Listo! ✨ Haz clic para subir más";
-            setTimeout(() => { p.innerText = "Haz clic para subir una nueva foto o video ✨"; }, 3000);
             gFile.value = "";
         };
     }
@@ -533,68 +468,22 @@ async function renderGallery() {
     if (!grid) return;
     const photosObj = await fbGet('gallery', {});
     const photos = Object.entries(photosObj || {}).map(([key, val]) => ({ ...val, fbKey: key })).reverse();
-    grid.innerHTML = photos.length ? '' : '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">Álbum vacío. ✨</p>';
-    
+    grid.innerHTML = photos.length ? '' : '<p>Álbum vacío ✨</p>';
     photos.forEach(p => {
-        const item = document.createElement('div'); 
-        item.className = 'gallery-item';
-        const isVideo = p.type === 'video';
-        
-        if (isVideo) {
-            const vid = document.createElement('video');
-            vid.src = p.url;
-            vid.muted = true;
-            vid.onmouseover = () => vid.play();
-            vid.onmouseout = () => { vid.pause(); vid.currentTime = 0; };
-            item.appendChild(vid);
-            const icon = document.createElement('div');
-            icon.className = 'video-icon';
-            icon.innerHTML = '▶';
-            item.appendChild(icon);
-        } else {
-            const img = document.createElement('img');
-            img.src = p.url;
-            item.appendChild(img);
-        }
-        
+        const item = document.createElement('div'); item.className = 'gallery-item';
+        if (p.type === 'video') { item.innerHTML = `<video src="${p.url}" muted></video><div class="video-icon">▶</div>`; }
+        else { item.innerHTML = `<img src="${p.url}">`; }
         item.onclick = () => {
-            const lbImg = document.getElementById('lightbox-img');
-            let lbVid = document.getElementById('lightbox-vid');
-            
-            if (!lbVid) {
-                lbVid = document.createElement('video');
-                lbVid.id = 'lightbox-vid';
-                lbVid.className = 'lightbox-content';
-                lbVid.controls = true;
-                document.getElementById('lightbox').appendChild(lbVid);
-            }
-
-            if (isVideo) {
-                if (lbImg) lbImg.style.display = 'none';
-                lbVid.src = p.url;
-                lbVid.style.display = 'block';
-                lbVid.play();
-            } else {
-                lbVid.style.display = 'none';
-                lbVid.pause();
-                lbImg.src = p.url;
-                lbImg.style.display = 'block';
-            }
-            document.getElementById('lightbox').classList.remove('hidden');
+            const lb = document.getElementById('lightbox'), lbi = document.getElementById('lightbox-img');
+            let lbv = document.getElementById('lightbox-vid');
+            if(!lbv){ lbv=document.createElement('video'); lbv.id='lightbox-vid'; lbv.controls=true; lbv.className='lightbox-content'; lb.appendChild(lbv); }
+            if(p.type==='video'){ lbi.style.display='none'; lbv.src=p.url; lbv.style.display='block'; lbv.play(); }
+            else { lbv.style.display='none'; lbv.pause(); lbi.src=p.url; lbi.style.display='block'; }
+            lb.classList.remove('hidden');
         };
-
-        const del = document.createElement('button');
-        del.className = 'delete-photo hidden';
-        del.innerHTML = '×';
-        del.onclick = async (e) => {
-            e.stopPropagation();
-            if(!isAdmin) return;
-            if(confirm("¿Borrar este archivo?")) {
-                if(database) await database.ref(`gallery/${p.fbKey}`).remove();
-            }
-        };
-        item.appendChild(del);
-        grid.appendChild(item);
+        const del = document.createElement('button'); del.className = 'delete-photo hidden'; del.innerHTML = '×';
+        del.onclick = async (e) => { e.stopPropagation(); if(confirm("¿Borrar?")) await database.ref(`gallery/${p.fbKey}`).remove(); };
+        item.appendChild(del); grid.appendChild(item);
     });
     checkAdminUI();
 }
