@@ -449,14 +449,30 @@ async function initGallery() {
     if (gFile) {
         gFile.onchange = async (e) => {
             const files = Array.from(e.target.files);
+            const p = gZone ? gZone.querySelector('p') : null;
+            if (p) p.innerText = "Procesando...";
+
             for (const file of files) {
                 const isVideo = file.type.startsWith('video/');
-                const reader = new FileReader();
-                const data = await new Promise(resolve => {
-                    reader.onload = ev => resolve(ev.target.result);
-                    reader.readAsDataURL(file);
-                });
-                await database.ref('gallery').push({ id: Date.now(), url: data, type: isVideo ? 'video' : 'image' });
+                if (isVideo) {
+                    const reader = new FileReader();
+                    const data = await new Promise(resolve => {
+                        reader.onload = ev => resolve(ev.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                    if (database) await database.ref('gallery').push({ id: Date.now(), url: data, type: 'video' });
+                } else {
+                    await new Promise(resolve => {
+                        compressImage(file, async (base64) => {
+                            if (database) await database.ref('gallery').push({ id: Date.now(), url: base64, type: 'image' });
+                            resolve();
+                        });
+                    });
+                }
+            }
+            if (p) {
+                p.innerText = "¡Subida completada! ✨";
+                setTimeout(() => { p.innerText = "Haz clic para subir una nueva foto o video al álbum ✨"; }, 2000);
             }
             gFile.value = "";
         };
