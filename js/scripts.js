@@ -154,10 +154,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+function getDeviceType() {
+    const ua = navigator.userAgent;
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
+    if (/Mobile|android|iphone|ipod/i.test(ua)) return "Móvil";
+    if (/Windows/i.test(ua)) return "PC (Windows)";
+    if (/Macintosh/i.test(ua)) return "PC (Mac)";
+    if (/Linux/i.test(ua)) return "PC (Linux)";
+    return "Desconocido";
+}
+
 function logVisit() {
     if (!database) return;
     try {
-        const logData = { date: new Date().toLocaleString(), ua: navigator.userAgent };
+        const logData = { 
+            date: new Date().toLocaleString(), 
+            device: getDeviceType(),
+            ua: navigator.userAgent 
+        };
         database.ref('visit-logs').push(logData);
     } catch(e) {}
 }
@@ -188,14 +202,17 @@ async function toggleAdminView(show) {
         const logsObj = await fbGet('visit-logs', {});
         const logs = Object.values(logsObj || {}).reverse().slice(0, 30);
 
-        let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs</h2></div>
+        let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs de Visitas</h2></div>
                     <div class="logs-card">
                         <div class="logs-table-wrapper">
-                            <table><thead><tr><th>Fecha</th><th>Disp</th></tr></thead><tbody>`;
-        logs.forEach(log => { html += `<tr><td>${log.date}</td><td class="ua-text">${log.ua}</td></tr>`; });
+                            <table><thead><tr><th>Fecha</th><th>Dispositivo</th></tr></thead><tbody>`;
+        logs.forEach(log => { 
+            const device = log.device || (log.ua ? (log.ua.includes('Mobi') ? 'Móvil' : 'PC') : 'Desconocido');
+            html += `<tr><td>${log.date}</td><td>${device}</td></tr>`; 
+        });
         html += `</tbody></table>
                         </div>
-                        <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){ if(database) database.ref('/').remove(); localStorage.clear(); location.reload();}" style="margin-top:20px">Resetear Todo</button>
+                        <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){ if(database) database.ref('visit-logs').remove(); location.reload();}" style="margin-top:20px">Limpiar Logs</button>
                     </div>`;
         logsContainer.innerHTML = html;
         document.getElementById('btn-back-home').onclick = () => toggleAdminView(false);
