@@ -49,33 +49,57 @@ if (mobileMenu) {
     });
 }
 
-// --- FUNCIONES DE BASE DE DATOS (HÍBRIDA: FIREBASE + LOCALSTORAGE) ---
+// --- FUNCIONES DE BASE DE DATOS (VIRTUAL DB: FIREBASE + LOCALSTORAGE SYNC) ---
+let localDB = JSON.parse(localStorage.getItem('para-ti-vdb') || '{}');
+
+function saveVDB() {
+    localStorage.setItem('para-ti-vdb', JSON.stringify(localDB));
+}
+
+// Obtener valor de un objeto usando una ruta (ej: "calendar-notes/note-2024-4-14")
+function getByPath(obj, path) {
+    return path.split('/').reduce((prev, curr) => prev && prev[curr], obj);
+}
+
+// Establecer valor en un objeto usando una ruta
+function setByPath(obj, path, value) {
+    const parts = path.split('/');
+    const last = parts.pop();
+    const target = parts.reduce((prev, curr) => {
+        if (!prev[curr]) prev[curr] = {};
+        return prev[curr];
+    }, obj);
+    target[last] = value;
+}
+
 async function fbGet(path, defaultValue = null) {
-    // Intentar obtener de Firebase si está configurado
+    // 1. Intentar Firebase
     if (database) {
         try {
             const snapshot = await database.ref(path).once('value');
-            if (snapshot.exists()) return snapshot.val();
-        } catch (e) { console.error("Error Firebase:", e); }
+            if (snapshot.exists()) {
+                const val = snapshot.val();
+                setByPath(localDB, path, val); // Sincronizar localmente
+                saveVDB();
+                return val;
+            }
+        } catch (e) { console.error("Error Firebase Get:", e); }
     }
-    // Fallback a LocalStorage si Firebase falla o no está configurado
-    try {
-        const local = localStorage.getItem('backup-' + path);
-        return local ? JSON.parse(local) : defaultValue;
-    } catch (e) { return defaultValue; }
+    // 2. Fallback a LocalDB (LocalStorage estructurado)
+    const localVal = getByPath(localDB, path);
+    return localVal !== undefined ? localVal : defaultValue;
 }
 
 async function fbSet(path, value) {
-    // Guardar en LocalStorage siempre (como backup y para uso inmediato)
-    try {
-        localStorage.setItem('backup-' + path, JSON.stringify(value));
-    } catch (e) { console.error("Error LocalStorage:", e); }
+    // 1. Guardar localmente siempre
+    setByPath(localDB, path, value);
+    saveVDB();
 
-    // Guardar en Firebase si está configurado
+    // 2. Guardar en Firebase si existe
     if (database) {
         try {
             await database.ref(path).set(value);
-        } catch (e) { console.error("Error Firebase:", e); }
+        } catch (e) { console.error("Error Firebase Set:", e); }
     }
 }
 
@@ -84,13 +108,15 @@ function fbOn(path, callback) {
         database.ref(path).on('value', (snapshot) => {
             const val = snapshot.val();
             if (val !== null) {
-                localStorage.setItem('backup-' + path, JSON.stringify(val));
+                setByPath(localDB, path, val);
+                saveVDB();
                 callback(val);
             }
         });
     } else {
-        // Si no hay Firebase, disparar el callback con lo que haya en LocalStorage una vez
-        fbGet(path).then(val => { if(val) callback(val); });
+        // Simular tiempo real con LocalDB
+        const val = getByPath(localDB, path);
+        if (val !== undefined) callback(val);
     }
 }
 
@@ -127,15 +153,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     logVisit(); 
     checkAdminUI();
     
-    // Renderizado inmediato
+    // Renderizado inmediato usando datos locales
     if (calendarGrid) {
         renderCalendarStructure();
-        updateCalendarWithData(); // Cargar puntos del calendario desde LocalStorage/Firebase
+        updateCalendarWithData(); 
     }
     loadLetter();
     if (redHeartsGrid || blackHeartsGrid) initHearts();
     if (stickersContainer) initStickers();
     if (document.getElementById('gallery-grid')) initGallery();
+
+    // Re-sincronizar con Firebase si está disponible (esto actualizará la UI si hay cambios en la nube)
+    if (isFirebaseConfigured) {
+        await updateCalendarWithData(); 
+    }
 });
 
 // --- SISTEMA DE AUDITORÍA ---
@@ -158,7 +189,7 @@ async function renderAdminLogs() {
     if (!logsContainer) return;
     
     const logsObj = await fbGet('visit-logs', {});
-    const logs = Object.values(logsObj).reverse().slice(0, 30);
+    const logs = Object.values(logsObj || {}).reverse().slice(0, 30);
 
     let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs</h2></div>
                 <div class="logs-card">
@@ -281,8 +312,12 @@ function renderCalendarStructure() {
 async function updateCalendarWithData() {
     if (!calendarGrid) return;
     const allNotes = await fbGet('calendar-notes', {});
+    // Limpiar puntos antes de poner nuevos
+    document.querySelectorAll('.calendar-day').forEach(el => el.classList.remove('has-note'));
+    
     Object.keys(allNotes).forEach(key => {
-        const dayEl = document.getElementById(`day-${key.replace('note-', '')}`);
+        const dayKey = key.replace('note-', '');
+        const dayEl = document.getElementById(`day-${dayKey}`);
         if (dayEl) dayEl.classList.add('has-note');
     });
 }
@@ -322,7 +357,7 @@ function updateStarsVisual(container, val) {
     });
 }
 
-// Configurar clics en estrellas de edición una sola vez
+// Configurar clics en estrellas de edición
 document.querySelectorAll('.star-rating span').forEach(s => {
     s.onclick = () => {
         if (!isAdmin) return;
@@ -382,6 +417,177 @@ if (btnSaveNote) {
     };
 }
 if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
+
+// --- COMPRESIÓN ---
+function compressImage(file, callback) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        const img = new Image(); img.src = e.target.result;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX = 600; let w = img.width, h = img.height;
+            if (w > h) { if(w > MAX) { h *= MAX/w; w = MAX; } } else { if(h > MAX) { w *= MAX/h; h = MAX; } }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            callback(canvas.toDataURL('image/jpeg', 0.5));
+        };
+    };
+}
+
+function handleFile(file, zone, targetInput) {
+    const p = zone.querySelector('p'); p.innerText = "Procesando...";
+    compressImage(file, (b64) => {
+        targetInput.value = b64;
+        const prev = zone.querySelector('img') || document.createElement('img');
+        prev.src = b64; prev.style.maxHeight = "100px"; prev.style.borderRadius = "10px";
+        if (!zone.querySelector('img')) zone.appendChild(prev);
+        p.style.display = "none";
+    });
+}
+
+if (dropZone && fileInput) {
+    dropZone.onclick = () => { if(isAdmin) fileInput.click(); };
+    fileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0], dropZone, notePhotoUrlInput); };
+}
+
+// --- CORAZONES Y STICKERS ---
+async function initHearts() {
+    if (!redHeartsGrid) return;
+    renderHearts(redHeartsGrid, 'red', []); 
+    renderHearts(blackHeartsGrid, 'black', []);
+    
+    const rState = await fbGet('red-hearts', []);
+    const bState = await fbGet('black-hearts', []);
+    renderHearts(redHeartsGrid, 'red', rState); 
+    renderHearts(blackHeartsGrid, 'black', bState);
+}
+
+function renderHearts(container, type, state) {
+    container.innerHTML = '';
+    const stateArr = Array.isArray(state) ? state : Object.values(state || {});
+    for (let i = 0; i < 40; i++) {
+        const h = document.createElement('div'); 
+        h.className = `heart-item ${stateArr.includes(i) ? 'marked' : 'unmarked'}`;
+        h.innerHTML = type === 'red' ? '❤️' : '🖤';
+        h.onclick = async () => {
+            if (stateArr.includes(i)) return; 
+            stateArr.push(i); 
+            h.className = 'heart-item marked';
+            if (type === 'red') throwHeart(); 
+            await fbSet(`${type}-hearts`, stateArr);
+        };
+        container.appendChild(h);
+    }
+}
+
+function throwHeart() {
+    const h = document.createElement('div'); h.className = 'thrown-heart'; h.innerText = '❤️'; document.body.appendChild(h);
+    h.style.left = Math.random()*window.innerWidth+'px'; h.style.top = (Math.random()>0.5?-50:window.innerHeight+50)+'px';
+    setTimeout(() => { h.style.left='50%'; h.style.top='50%'; h.style.opacity='0'; }, 100); setTimeout(() => h.remove(), 1200);
+}
+
+async function initStickers() {
+    if (!stickersContainer) return;
+    
+    fbOn('stickers', (data) => {
+        stickers = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
+        renderStickersList();
+    });
+    
+    stickersContainer.ondblclick = async (e) => {
+        if (e.target !== stickersContainer) return;
+        const text = prompt("Mensaje:");
+        if (text) {
+            const s = { text, x: e.clientX-100, y: e.clientY-75, color: ['','pink','blue','green'][Math.floor(Math.random()*4)] };
+            stickers.push(s); 
+            await fbSet('stickers', stickers);
+        }
+    };
+}
+
+function renderStickersList() {
+    const instr = document.getElementById('sticker-instruction');
+    stickersContainer.innerHTML = '';
+    if (instr) stickersContainer.appendChild(instr);
+    stickers.forEach((s, i) => renderSticker(s, i));
+    checkAdminUI();
+}
+
+function renderSticker(data, index) {
+    const div = document.createElement('div'); div.className = `sticker ${data.color}`; div.style.left = data.x+'px'; div.style.top = data.y+'px'; div.innerText = data.text;
+    const del = document.createElement('button'); del.className = 'delete-sticker hidden'; del.innerHTML = '×';
+    del.onclick = async (e) => { e.stopPropagation(); if (!isAdmin) return; stickers.splice(index, 1); await fbSet('stickers', stickers); };
+    div.appendChild(del);
+    let isDrag = false, ox, oy;
+    div.onmousedown = (e) => { if(e.target===del) return; isDrag=true; ox=e.clientX-div.offsetLeft; oy=e.clientY-div.offsetTop; div.style.zIndex=1000; };
+    window.onmousemove = (e) => { if(isDrag) { data.x=e.clientX-ox; data.y=e.clientY-oy; div.style.left=data.x+'px'; div.style.top=data.y+'px'; } };
+    window.onmouseup = async () => { if(isDrag) { isDrag=false; div.style.zIndex=10; await fbSet('stickers', stickers); } };
+    stickersContainer.appendChild(div);
+}
+
+// --- GALERÍA ---
+async function initGallery() {
+    const gZone = document.getElementById('gallery-drop-zone'), gFile = document.getElementById('gallery-file-input');
+    const lb = document.getElementById('lightbox'), lbc = document.getElementById('close-lightbox');
+    
+    fbOn('gallery', () => renderGallery());
+    
+    if (gZone) gZone.onclick = () => gFile.click();
+    if (gFile) {
+        gFile.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            const p = gZone.querySelector('p');
+            let uploadedCount = 0;
+            for (const file of files) {
+                p.innerText = `Subiendo ${uploadedCount + 1}...`;
+                const b64 = await new Promise((resolve) => compressImage(file, resolve));
+                if (database) {
+                    const newPhotoRef = database.ref('gallery').push();
+                    await newPhotoRef.set({ id: Date.now(), url: b64 });
+                } else {
+                    const gallery = await fbGet('gallery', {});
+                    const id = Date.now();
+                    gallery[id] = { id, url: b64 };
+                    await fbSet('gallery', gallery);
+                }
+                uploadedCount++;
+            }
+            p.innerText = "Haz clic para subir una nueva foto ✨";
+            alert(`¡${uploadedCount} fotos añadidas! ❤️`);
+            gFile.value = "";
+            renderGallery();
+        };
+    }
+    if (lbc) lbc.onclick = () => lb.classList.add('hidden');
+}
+
+async function renderGallery() {
+    const grid = document.getElementById('gallery-grid');
+    if (!grid) return;
+    const photosObj = await fbGet('gallery', {});
+    const photos = Object.entries(photosObj || {}).map(([key, val]) => ({ ...val, fbKey: key })).reverse();
+    
+    grid.innerHTML = photos.length ? '' : '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">Álbum vacío. ✨</p>';
+    photos.forEach(p => {
+        const item = document.createElement('div'); item.className = 'gallery-item';
+        item.onclick = () => { document.getElementById('lightbox-img').src = p.url; document.getElementById('lightbox').classList.remove('hidden'); };
+        const img = document.createElement('img'); img.src = p.url;
+        const del = document.createElement('button'); del.className = 'delete-photo hidden'; del.innerHTML = '×';
+        del.onclick = async (e) => { e.stopPropagation(); if(!isAdmin) return; if(confirm("¿Borrar?")) { 
+            if(database) await database.ref(`gallery/${p.fbKey}`).remove(); 
+            else {
+                const gallery = await fbGet('gallery', {});
+                delete gallery[p.fbKey];
+                await fbSet('gallery', gallery);
+            }
+            renderGallery(); 
+        } };
+        item.appendChild(img); item.appendChild(del); grid.appendChild(item);
+    });
+    checkAdminUI();
+}
 
 // --- COMPRESIÓN ---
 function compressImage(file, callback) {
