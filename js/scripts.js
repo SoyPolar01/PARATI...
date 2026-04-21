@@ -3,15 +3,14 @@ const MASTER_KEY = "14042024";
 let isAdmin = sessionStorage.getItem('isAdmin') === 'true';
 
 // --- CONFIGURACIÓN FIREBASE ---
-// IMPORTANTE: Reemplaza estos datos con los de tu consola Firebase para que funcione la sincronización.
 const firebaseConfig = {
-    apiKey: "TU_API_KEY",
-    authDomain: "TU_PROYECTO.firebaseapp.com",
-    databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
-    projectId: "TU_PROYECTO",
-    storageBucket: "TU_PROYECTO.appspot.com",
-    messagingSenderId: "TU_SENDER_ID",
-    appId: "TU_APP_ID"
+    apiKey: "AIzaSyCD3qf8CIThV2yij5c7lqSVuGQqP2mrbxc",
+    authDomain: "parati2-17ef5.firebaseapp.com",
+    databaseURL: "https://parati2-17ef5-default-rtdb.firebaseio.com",
+    projectId: "parati2-17ef5",
+    storageBucket: "parati2-17ef5.firebasestorage.app",
+    messagingSenderId: "781643198877",
+    appId: "1:781643198877:web:655abe44a00e4a3daf7f74"
 };
 
 // Verificar si la configuración es válida
