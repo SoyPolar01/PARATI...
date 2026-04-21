@@ -381,7 +381,7 @@ if (btnSaveNote) {
 }
 if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
 
-// --- COMPRESIÓN ---
+// --- COMPRESIÓN Y PROCESAMIENTO ---
 function compressImage(file, callback) {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -397,6 +397,14 @@ function compressImage(file, callback) {
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
             callback(canvas.toDataURL('image/jpeg', 0.6));
         };
+    };
+}
+
+function processVideo(file, callback) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        callback(e.target.result);
     };
 }
 
@@ -472,7 +480,13 @@ function renderStickersList() {
 async function initGallery() {
     const gZone = document.getElementById('gallery-drop-zone'), gFile = document.getElementById('gallery-file-input');
     const lb = document.getElementById('lightbox'), lbc = document.getElementById('close-lightbox');
-    if (lb) lbc.onclick = () => lb.classList.add('hidden');
+    if (lb) lbc.onclick = () => {
+        lb.classList.add('hidden');
+        const lbImg = document.getElementById('lightbox-img');
+        const lbVid = document.getElementById('lightbox-vid');
+        if (lbImg) lbImg.style.display = 'none';
+        if (lbVid) { lbVid.style.display = 'none'; lbVid.pause(); lbVid.src = ''; }
+    };
     if (gZone) gZone.onclick = () => gFile.click();
     
     fbOn('gallery', () => renderGallery());
@@ -486,15 +500,29 @@ async function initGallery() {
             for (const file of files) {
                 p.innerText = `Subiendo ${uploadedCount + 1}/${files.length}...`;
                 try {
-                    const b64 = await new Promise((resolve) => compressImage(file, resolve));
+                    const isVideo = file.type.startsWith('video/');
+                    if (isVideo && file.size > 15 * 1024 * 1024) {
+                        alert(`El video "${file.name}" es muy pesado. Máximo 15MB.`);
+                        continue;
+                    }
+                    
+                    const data = await new Promise((resolve) => {
+                        if (isVideo) processVideo(file, resolve);
+                        else compressImage(file, resolve);
+                    });
+                    
                     if (database) {
-                        await database.ref('gallery').push({ id: Date.now(), url: b64 });
+                        await database.ref('gallery').push({ 
+                            id: Date.now(), 
+                            url: data,
+                            type: isVideo ? 'video' : 'image'
+                        });
                     }
                     uploadedCount++;
-                } catch (err) { console.error("Error subiendo foto:", err); }
+                } catch (err) { console.error("Error subiendo archivo:", err); }
             }
             p.innerText = "¡Listo! ✨ Haz clic para subir más";
-            setTimeout(() => { p.innerText = "Haz clic para subir una nueva foto ✨"; }, 3000);
+            setTimeout(() => { p.innerText = "Haz clic para subir una nueva foto o video ✨"; }, 3000);
             gFile.value = "";
         };
     }
@@ -506,13 +534,67 @@ async function renderGallery() {
     const photosObj = await fbGet('gallery', {});
     const photos = Object.entries(photosObj || {}).map(([key, val]) => ({ ...val, fbKey: key })).reverse();
     grid.innerHTML = photos.length ? '' : '<p style="grid-column: 1/-1; opacity: 0.5; text-align: center;">Álbum vacío. ✨</p>';
+    
     photos.forEach(p => {
-        const item = document.createElement('div'); item.className = 'gallery-item';
-        item.onclick = () => { document.getElementById('lightbox-img').src = p.url; document.getElementById('lightbox').classList.remove('hidden'); };
-        const img = document.createElement('img'); img.src = p.url;
-        const del = document.createElement('button'); del.className = 'delete-photo hidden'; del.innerHTML = '×';
-        del.onclick = async (e) => { e.stopPropagation(); if(!isAdmin) return; if(confirm("¿Borrar?")) { if(database) await database.ref(`gallery/${p.fbKey}`).remove(); } };
-        item.appendChild(img); item.appendChild(del); grid.appendChild(item);
+        const item = document.createElement('div'); 
+        item.className = 'gallery-item';
+        const isVideo = p.type === 'video';
+        
+        if (isVideo) {
+            const vid = document.createElement('video');
+            vid.src = p.url;
+            vid.muted = true;
+            vid.onmouseover = () => vid.play();
+            vid.onmouseout = () => { vid.pause(); vid.currentTime = 0; };
+            item.appendChild(vid);
+            const icon = document.createElement('div');
+            icon.className = 'video-icon';
+            icon.innerHTML = '▶';
+            item.appendChild(icon);
+        } else {
+            const img = document.createElement('img');
+            img.src = p.url;
+            item.appendChild(img);
+        }
+        
+        item.onclick = () => {
+            const lbImg = document.getElementById('lightbox-img');
+            let lbVid = document.getElementById('lightbox-vid');
+            
+            if (!lbVid) {
+                lbVid = document.createElement('video');
+                lbVid.id = 'lightbox-vid';
+                lbVid.className = 'lightbox-content';
+                lbVid.controls = true;
+                document.getElementById('lightbox').appendChild(lbVid);
+            }
+
+            if (isVideo) {
+                if (lbImg) lbImg.style.display = 'none';
+                lbVid.src = p.url;
+                lbVid.style.display = 'block';
+                lbVid.play();
+            } else {
+                lbVid.style.display = 'none';
+                lbVid.pause();
+                lbImg.src = p.url;
+                lbImg.style.display = 'block';
+            }
+            document.getElementById('lightbox').classList.remove('hidden');
+        };
+
+        const del = document.createElement('button');
+        del.className = 'delete-photo hidden';
+        del.innerHTML = '×';
+        del.onclick = async (e) => {
+            e.stopPropagation();
+            if(!isAdmin) return;
+            if(confirm("¿Borrar este archivo?")) {
+                if(database) await database.ref(`gallery/${p.fbKey}`).remove();
+            }
+        };
+        item.appendChild(del);
+        grid.appendChild(item);
     });
     checkAdminUI();
 }
