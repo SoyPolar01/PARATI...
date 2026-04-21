@@ -13,7 +13,6 @@ const firebaseConfig = {
     appId: "1:781643198877:web:655abe44a00e4a3daf7f74"
 };
 
-// Verificar si la configuración es válida
 const isFirebaseConfigured = firebaseConfig.apiKey !== "TU_API_KEY";
 let database = null;
 
@@ -29,7 +28,6 @@ const adminTrigger = document.getElementById('admin-trigger');
 const mobileMenu = document.getElementById('mobile-menu');
 const navLinks = document.querySelector('.nav-links');
 
-// Lógica de Menú Responsive
 if (mobileMenu) {
     mobileMenu.onclick = () => {
         mobileMenu.classList.toggle('active');
@@ -37,8 +35,8 @@ if (mobileMenu) {
     };
 
     document.querySelectorAll('.nav-links a').forEach(link => {
-        link.onclick = (e) => {
-            if (link.id === 'btn-show-logs') return; // No cerrar si es el botón de logs
+        link.onclick = () => {
+            if (link.id === 'btn-show-logs') return;
             mobileMenu.classList.remove('active');
             navLinks.classList.remove('active');
         };
@@ -113,8 +111,6 @@ const btnSaveNote = document.getElementById('btn-save-note');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const notePhotoUrlInput = document.getElementById('note-photo-url');
 const noteMessageInput = document.getElementById('note-message');
-const fileInput = document.getElementById('file-input');
-const dropZone = document.getElementById('drop-zone');
 const redHeartsGrid = document.getElementById('red-hearts-grid');
 const blackHeartsGrid = document.getElementById('black-hearts-grid');
 const stickersContainer = document.getElementById('stickers-container');
@@ -144,9 +140,7 @@ function getDeviceType() {
     if (/iphone|ipod/i.test(ua)) return "iPhone";
     if (/android/i.test(ua)) return "Android";
     if (/Windows/i.test(ua)) return "PC (Windows)";
-    if (/Macintosh/i.test(ua)) return "PC (Mac)";
-    if (/Linux/i.test(ua)) return "PC (Linux)";
-    return "Móvil/Otro";
+    return "Dispositivo";
 }
 
 function logVisit() {
@@ -164,23 +158,14 @@ function checkAdminUI() {
     
     if (isAdmin) {
         const btnLogs = document.getElementById('btn-show-logs');
-        if (btnLogs) {
-            btnLogs.onclick = (e) => { 
-                e.preventDefault(); 
-                toggleAdminView(true); 
-            };
-        }
+        if (btnLogs) btnLogs.onclick = (e) => { e.preventDefault(); toggleAdminView(true); };
     }
 }
 
 async function toggleAdminView(show) {
     const main = document.getElementById('main-content');
     let logsContainer = document.getElementById('admin-logs-view');
-    
-    if (mobileMenu) {
-        mobileMenu.classList.remove('active');
-        navLinks.classList.remove('active');
-    }
+    if (mobileMenu) { mobileMenu.classList.remove('active'); navLinks.classList.remove('active'); }
 
     if (show) {
         if (!logsContainer && homePage) {
@@ -188,25 +173,19 @@ async function toggleAdminView(show) {
             logsContainer.id = 'admin-logs-view';
             homePage.appendChild(logsContainer);
         }
-        
         const logsObj = await fbGet('visit-logs', {});
         const logs = Object.values(logsObj || {}).reverse().slice(0, 50);
-
         let html = `<div class="admin-page-header"><button id="btn-back-home" class="btn btn-secondary">← Volver</button><h2 class="dancing-title">Logs de Visitas</h2></div>
                     <div class="logs-card">
                         <div class="logs-table-wrapper">
                             <table><thead><tr><th>Fecha</th><th>Disp.</th></tr></thead><tbody>`;
-        logs.forEach(log => { 
-            html += `<tr><td>${log.date}</td><td>${log.device}</td></tr>`; 
-        });
-        html += `</tbody></table>
-                        </div>
+        logs.forEach(log => { html += `<tr><td>${log.date}</td><td>${log.device}</td></tr>`; });
+        html += `</tbody></table></div>
                         <button class="btn btn-primary" onclick="if(confirm('¿Limpiar?')){ if(database) database.ref('visit-logs').remove(); location.reload();}" style="margin-top:20px; width:100%">Limpiar Logs</button>
                     </div>`;
         logsContainer.innerHTML = html;
         logsContainer.classList.remove('hidden');
         document.getElementById('btn-back-home').onclick = () => toggleAdminView(false);
-        
         if(main) main.classList.add('hidden');
         window.scrollTo(0,0);
     } else {
@@ -215,10 +194,8 @@ async function toggleAdminView(show) {
     }
 }
 
-// --- ACTIVADOR ADMINISTRATIVO ---
 if (adminTrigger) {
     adminTrigger.addEventListener('dblclick', (e) => {
-        e.preventDefault();
         if (isAdmin) {
             if(confirm("¿Cerrar modo administrador?")) {
                 isAdmin = false;
@@ -227,44 +204,23 @@ if (adminTrigger) {
             }
             return;
         }
-        
-        const pass = prompt("Introduce la llave secreta:");
+        const pass = prompt("Llave:");
         if (pass === MASTER_KEY) {
             isAdmin = true;
             sessionStorage.setItem('isAdmin', 'true');
-            alert("¡Modo administrador activado! ❤️");
-            checkAdminUI();
-            if (calendarGrid) renderCalendarStructure();
-            // Recargar para asegurar que todos los elementos admin se muestren
+            alert("¡Modo admin! ❤️");
             location.reload();
-        } else if (pass !== null) {
-            alert("Llave incorrecta... 🔒");
-        }
+        } else if (pass !== null) alert("Llave incorrecta... 🔒");
     });
 }
 
-// --- RESTO DE FUNCIONES (INTACTAS PERO OPTIMIZADAS) ---
-async function loadLetter() {
-    const s = await fbGet('romantic-letter', "Hay personas que hacen que el mundo sea un lugar mejor...");
-    editableLetter.innerHTML = s;
-}
-
-if (btnEdit && btnSave) {
-    btnEdit.onclick = () => { editableLetter.focus(); btnEdit.classList.add('hidden'); btnSave.classList.remove('hidden'); };
-    btnSave.onclick = async () => { 
-        await fbSet('romantic-letter', editableLetter.innerHTML); 
-        btnEdit.classList.remove('hidden'); btnSave.classList.add('hidden'); 
-        alert("Guardado ❤️"); 
-    };
-}
-
+// --- CALENDARIO ---
 function renderCalendarStructure() {
     if (!calendarGrid) return;
     const year = currentViewDate.getFullYear(), month = currentViewDate.getMonth();
     const now = new Date(), today = now.getDate();
     const isCurrent = (now.getFullYear() === year && now.getMonth() === month);
     const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    
     document.getElementById('current-month-year').innerText = `${months[month]} ${year}`;
     const fragment = document.createDocumentFragment();
     ['L', 'M', 'M', 'J', 'V', 'S', 'D'].forEach(d => { 
@@ -278,17 +234,13 @@ function renderCalendarStructure() {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     for (let d = 1; d <= daysInMonth; d++) {
         const dv = document.createElement('div'); 
-        dv.className = 'calendar-day';
-        dv.id = `day-${year}-${month+1}-${d}`;
+        dv.className = 'calendar-day'; dv.id = `day-${year}-${month+1}-${d}`;
         if (isCurrent && d === today) dv.classList.add('today');
-        dv.innerText = d; 
-        dv.onclick = () => openNote(d, `${year}-${month+1}-${d}`);
+        dv.innerText = d; dv.onclick = () => openNote(d, `${year}-${month+1}-${d}`);
         fragment.appendChild(dv);
     }
-    calendarGrid.innerHTML = '';
-    calendarGrid.appendChild(fragment);
+    calendarGrid.innerHTML = ''; calendarGrid.appendChild(fragment);
     if (daysCountDisplay) daysCountDisplay.innerText = Math.floor((now - new Date('2023-12-22'))/86400000);
-    
     prevMonthBtn.onclick = () => { currentViewDate.setMonth(currentViewDate.getMonth()-1); renderCalendarStructure(); updateCalendarWithData(); };
     nextMonthBtn.onclick = () => { currentViewDate.setMonth(currentViewDate.getMonth()+1); renderCalendarStructure(); updateCalendarWithData(); };
 }
@@ -314,100 +266,69 @@ async function openNote(day, key) {
     renderRatingDisplay(document.getElementById('view-red-rating'), 'red', data.redRating || 0, key);
     renderRatingDisplay(document.getElementById('view-black-rating'), 'black', data.blackRating || 0, key);
     if (isAdmin) {
-        notePhotoUrlInput.value = data.photo || ""; 
-        noteMessageInput.value = data.message || "";
+        document.getElementById('note-photo-url').value = data.photo || ""; 
+        document.getElementById('note-message').value = data.message || "";
         document.getElementById('note-red-rating').value = data.redRating || 0;
         document.getElementById('note-black-rating').value = data.blackRating || 0;
         updateStarsVisual(document.querySelector('.red-stars'), data.redRating || 0);
         updateStarsVisual(document.querySelector('.black-stars'), data.blackRating || 0);
     }
     noteModal.classList.remove('hidden');
-    checkAdminUI();
 }
 
 function updateStarsVisual(container, val) {
     if (!container) return;
-    container.querySelectorAll('span').forEach(s => {
-        s.style.opacity = parseInt(s.dataset.value) <= val ? '1' : '0.3';
-    });
+    container.querySelectorAll('span').forEach(s => { s.style.opacity = parseInt(s.dataset.value) <= val ? '1' : '0.3'; });
 }
 
 function renderRatingDisplay(container, type, val, key) {
     container.innerHTML = '';
     for (let i = 1; i <= 5; i++) {
-        const s = document.createElement('span'); 
-        s.innerText = type === 'red' ? '❤️' : '🖤';
-        s.style.opacity = i <= val ? '1' : '0.2'; 
-        s.style.fontSize = '1.8rem';
+        const s = document.createElement('span'); s.innerText = type === 'red' ? '❤️' : '🖤';
+        s.style.opacity = i <= val ? '1' : '0.2'; s.style.fontSize = '1.8rem';
         s.style.cursor = isAdmin ? 'pointer' : 'default';
-        s.onclick = async () => {
-            if (isAdmin) {
-                document.getElementById(`note-${type}-rating`).value = i;
-                updateStarsVisual(document.querySelector(`.${type}-stars`), i);
-                renderRatingDisplay(container, type, i, key);
-            }
-        };
+        s.onclick = () => { if (isAdmin) { document.getElementById(`note-${type}-rating`).value = i; updateStarsVisual(document.querySelector(`.${type}-stars`), i); renderRatingDisplay(container, type, i, key); } };
         container.appendChild(s);
     }
 }
 
 if (btnSaveNote) {
     btnSaveNote.onclick = async () => {
-        btnSaveNote.innerText = "Guardando...";
         const data = { 
-            photo: notePhotoUrlInput.value, 
-            message: noteMessageInput.value, 
+            photo: document.getElementById('note-photo-url').value, 
+            message: document.getElementById('note-message').value, 
             redRating: parseInt(document.getElementById('note-red-rating').value) || 0, 
             blackRating: parseInt(document.getElementById('note-black-rating').value) || 0 
         };
         await fbSet(`calendar-notes/note-${selectedDateKey}`, data); 
-        btnSaveNote.innerText = "Guardar Detalle";
-        noteModal.classList.add('hidden'); 
-        updateCalendarWithData();
+        noteModal.classList.add('hidden'); updateCalendarWithData();
     };
 }
 if (btnCloseModal) btnCloseModal.onclick = () => noteModal.classList.add('hidden');
 
-function compressImage(file, callback) {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (e) => {
-        const img = new Image();
-        img.src = e.target.result;
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX = 800;
-            let w = img.width, h = img.height;
-            if (w > h) { if(w > MAX) { h *= MAX/w; w = MAX; } } else { if(h > MAX) { w *= MAX/h; h = MAX; } }
-            canvas.width = w; canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            callback(canvas.toDataURL('image/jpeg', 0.6));
-        };
-    };
+// --- OTROS ---
+async function loadLetter() {
+    const s = await fbGet('romantic-letter', "Hay personas que hacen que el mundo sea un lugar mejor...");
+    editableLetter.innerHTML = s;
+}
+
+if (btnEdit && btnSave) {
+    btnEdit.onclick = () => { editableLetter.focus(); btnEdit.classList.add('hidden'); btnSave.classList.remove('hidden'); };
+    btnSave.onclick = async () => { await fbSet('romantic-letter', editableLetter.innerHTML); btnEdit.classList.remove('hidden'); btnSave.classList.add('hidden'); alert("Guardado ❤️"); };
 }
 
 async function initHearts() {
     if (!redHeartsGrid) return;
-    const rState = await fbGet('red-hearts', []);
-    const bState = await fbGet('black-hearts', []);
-    renderHearts(redHeartsGrid, 'red', rState); 
-    renderHearts(blackHeartsGrid, 'black', bState);
+    const rState = await fbGet('red-hearts', []), bState = await fbGet('black-hearts', []);
+    renderHearts(redHeartsGrid, 'red', rState); renderHearts(blackHeartsGrid, 'black', bState);
 }
 
 function renderHearts(container, type, state) {
     container.innerHTML = '';
     const stateArr = Array.isArray(state) ? state : Object.values(state || {});
     for (let i = 0; i < 40; i++) {
-        const h = document.createElement('div'); 
-        h.className = `heart-item ${stateArr.includes(i) ? 'marked' : 'unmarked'}`;
-        h.innerHTML = type === 'red' ? '❤️' : '🖤';
-        h.onclick = async () => {
-            if (stateArr.includes(i)) return; 
-            stateArr.push(i); 
-            h.className = 'heart-item marked';
-            if (type === 'red') throwHeart(); 
-            await fbSet(`${type}-hearts`, stateArr);
-        };
+        const h = document.createElement('div'); h.className = `heart-item ${stateArr.includes(i) ? 'marked' : 'unmarked'}`; h.innerHTML = type === 'red' ? '❤️' : '🖤';
+        h.onclick = async () => { if (stateArr.includes(i)) return; stateArr.push(i); h.className = 'heart-item marked'; if (type === 'red') throwHeart(); await fbSet(`${type}-hearts`, stateArr); };
         container.appendChild(h);
     }
 }
@@ -419,29 +340,16 @@ function throwHeart() {
 }
 
 async function initStickers() {
-    fbOn('stickers', (data) => {
-        stickers = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
-        renderStickersList();
-    });
-    stickersContainer.ondblclick = async (e) => {
-        if (e.target !== stickersContainer) return;
-        const text = prompt("Mensaje:");
-        if (text) {
-            const s = { text, x: e.clientX-100, y: e.clientY-75, color: ['','pink','blue','green'][Math.floor(Math.random()*4)] };
-            stickers.push(s); await fbSet('stickers', stickers);
-        }
-    };
+    fbOn('stickers', (data) => { stickers = data ? (Array.isArray(data) ? data : Object.values(data)) : []; renderStickersList(); });
+    stickersContainer.ondblclick = async (e) => { if (e.target !== stickersContainer) return; const text = prompt("Mensaje:"); if (text) { const s = { text, x: e.clientX-100, y: e.clientY-75, color: ['','pink','blue','green'][Math.floor(Math.random()*4)] }; stickers.push(s); await fbSet('stickers', stickers); } };
 }
 
 function renderStickersList() {
-    const instr = document.getElementById('sticker-instruction');
-    stickersContainer.innerHTML = '';
-    if (instr) stickersContainer.appendChild(instr);
+    stickersContainer.innerHTML = ''; const instr = document.getElementById('sticker-instruction'); if (instr) stickersContainer.appendChild(instr);
     stickers.forEach((s, i) => {
         const div = document.createElement('div'); div.className = `sticker ${s.color}`; div.style.left = s.x+'px'; div.style.top = s.y+'px'; div.innerText = s.text;
         const del = document.createElement('button'); del.className = 'delete-sticker hidden'; del.innerHTML = '×';
-        del.onclick = async (e) => { e.stopPropagation(); stickers.splice(i, 1); await fbSet('stickers', stickers); };
-        div.appendChild(del);
+        del.onclick = async (e) => { e.stopPropagation(); stickers.splice(i, 1); await fbSet('stickers', stickers); }; div.appendChild(del);
         let isDrag = false, ox, oy;
         div.onmousedown = (e) => { if(e.target===del) return; isDrag=true; ox=e.clientX-div.offsetLeft; oy=e.clientY-div.offsetTop; div.style.zIndex=1000; };
         window.onmousemove = (e) => { if(isDrag) { s.x=e.clientX-ox; s.y=e.clientY-oy; div.style.left=s.x+'px'; div.style.top=s.y+'px'; } };
@@ -451,6 +359,7 @@ function renderStickersList() {
     checkAdminUI();
 }
 
+// --- GALERÍA ---
 async function initGallery() {
     const gZone = document.getElementById('gallery-drop-zone'), gFile = document.getElementById('gallery-file-input');
     const lb = document.getElementById('lightbox'), lbc = document.getElementById('close-lightbox');
@@ -462,7 +371,11 @@ async function initGallery() {
             const files = Array.from(e.target.files);
             for (const file of files) {
                 const isVideo = file.type.startsWith('video/');
-                const data = await new Promise(r => isVideo ? (const fr=new FileReader(), fr.onload=e=>r(e.target.result), fr.readAsDataURL(file)) : compressImage(file, r));
+                const reader = new FileReader();
+                const data = await new Promise(resolve => {
+                    reader.onload = ev => resolve(ev.target.result);
+                    reader.readAsDataURL(file);
+                });
                 await database.ref('gallery').push({ id: Date.now(), url: data, type: isVideo ? 'video' : 'image' });
             }
             gFile.value = "";
@@ -471,15 +384,13 @@ async function initGallery() {
 }
 
 async function renderGallery() {
-    const grid = document.getElementById('gallery-grid');
-    if (!grid) return;
+    const grid = document.getElementById('gallery-grid'); if (!grid) return;
     const photosObj = await fbGet('gallery', {});
     const photos = Object.entries(photosObj || {}).map(([key, val]) => ({ ...val, fbKey: key })).reverse();
     grid.innerHTML = photos.length ? '' : '<p>Álbum vacío ✨</p>';
     photos.forEach(p => {
         const item = document.createElement('div'); item.className = 'gallery-item';
-        if (p.type === 'video') { item.innerHTML = `<video src="${p.url}" muted></video><div class="video-icon">▶</div>`; }
-        else { item.innerHTML = `<img src="${p.url}">`; }
+        item.innerHTML = p.type === 'video' ? `<video src="${p.url}" muted></video><div class="video-icon">▶</div>` : `<img src="${p.url}">`;
         item.onclick = () => {
             const lb = document.getElementById('lightbox'), lbi = document.getElementById('lightbox-img');
             let lbv = document.getElementById('lightbox-vid');
