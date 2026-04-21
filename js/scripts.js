@@ -215,23 +215,30 @@ async function toggleAdminView(show) {
     }
 }
 
+// --- ACTIVADOR ADMINISTRATIVO ---
 if (adminTrigger) {
-    adminTrigger.addEventListener('dblclick', () => {
+    adminTrigger.addEventListener('dblclick', (e) => {
+        e.preventDefault();
         if (isAdmin) {
-            if(confirm("¿Cerrar modo admin?")) {
+            if(confirm("¿Cerrar modo administrador?")) {
                 isAdmin = false;
                 sessionStorage.removeItem('isAdmin');
                 location.reload();
             }
             return;
         }
-        const pass = prompt("Llave:");
+        
+        const pass = prompt("Introduce la llave secreta:");
         if (pass === MASTER_KEY) {
             isAdmin = true;
             sessionStorage.setItem('isAdmin', 'true');
-            alert("Modo admin ❤️");
+            alert("¡Modo administrador activado! ❤️");
             checkAdminUI();
             if (calendarGrid) renderCalendarStructure();
+            // Recargar para asegurar que todos los elementos admin se muestren
+            location.reload();
+        } else if (pass !== null) {
+            alert("Llave incorrecta... 🔒");
         }
     });
 }
