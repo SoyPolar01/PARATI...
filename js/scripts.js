@@ -114,6 +114,8 @@ const noteMessageInput = document.getElementById('note-message');
 const redHeartsGrid = document.getElementById('red-hearts-grid');
 const blackHeartsGrid = document.getElementById('black-hearts-grid');
 const stickersContainer = document.getElementById('stickers-container');
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
 
 let currentViewDate = new Date();
 let selectedDateKey = "";
@@ -152,8 +154,14 @@ function logVisit() {
 }
 
 function checkAdminUI() {
-    const elms = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo');
-    elms.forEach(el => isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden'));
+    const elms = document.querySelectorAll('.letter-actions, .note-inputs, #btn-save-note, .delete-sticker, #sticker-instruction, #nav-logs-container, .delete-photo, .gallery-upload-container');
+    elms.forEach(el => {
+        if (isAdmin) {
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    });
     if (editableLetter) editableLetter.contentEditable = isAdmin;
     
     if (isAdmin) {
