@@ -49,35 +49,49 @@ if (mobileMenu) {
     });
 }
 
-// --- FUNCIONES DE BASE DE DATOS (FIREBASE CON FALLBACK) ---
+// --- FUNCIONES DE BASE DE DATOS (HÍBRIDA: FIREBASE + LOCALSTORAGE) ---
 async function fbGet(path, defaultValue = null) {
-    if (!database) return defaultValue;
-    try {
-        const snapshot = await database.ref(path).once('value');
-        return snapshot.exists() ? snapshot.val() : defaultValue;
-    } catch (e) {
-        console.error("Error al leer de Firebase:", e);
-        return defaultValue;
+    // Intentar obtener de Firebase si está configurado
+    if (database) {
+        try {
+            const snapshot = await database.ref(path).once('value');
+            if (snapshot.exists()) return snapshot.val();
+        } catch (e) { console.error("Error Firebase:", e); }
     }
+    // Fallback a LocalStorage si Firebase falla o no está configurado
+    try {
+        const local = localStorage.getItem('backup-' + path);
+        return local ? JSON.parse(local) : defaultValue;
+    } catch (e) { return defaultValue; }
 }
 
 async function fbSet(path, value) {
-    if (!database) {
-        console.warn("No se puede guardar: Firebase no configurado.");
-        return;
-    }
+    // Guardar en LocalStorage siempre (como backup y para uso inmediato)
     try {
-        await database.ref(path).set(value);
-    } catch (e) {
-        console.error("Error al guardar en Firebase:", e);
+        localStorage.setItem('backup-' + path, JSON.stringify(value));
+    } catch (e) { console.error("Error LocalStorage:", e); }
+
+    // Guardar en Firebase si está configurado
+    if (database) {
+        try {
+            await database.ref(path).set(value);
+        } catch (e) { console.error("Error Firebase:", e); }
     }
 }
 
 function fbOn(path, callback) {
-    if (!database) return;
-    database.ref(path).on('value', (snapshot) => {
-        callback(snapshot.val());
-    });
+    if (database) {
+        database.ref(path).on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val !== null) {
+                localStorage.setItem('backup-' + path, JSON.stringify(val));
+                callback(val);
+            }
+        });
+    } else {
+        // Si no hay Firebase, disparar el callback con lo que haya en LocalStorage una vez
+        fbGet(path).then(val => { if(val) callback(val); });
+    }
 }
 
 // --- PÁGINA DE INICIO (INDEX.HTML) ---
@@ -113,17 +127,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     logVisit(); 
     checkAdminUI();
     
-    // Renderizado inmediato de componentes visuales
-    if (calendarGrid) renderCalendarStructure();
+    // Renderizado inmediato
+    if (calendarGrid) {
+        renderCalendarStructure();
+        updateCalendarWithData(); // Cargar puntos del calendario desde LocalStorage/Firebase
+    }
     loadLetter();
     if (redHeartsGrid || blackHeartsGrid) initHearts();
     if (stickersContainer) initStickers();
     if (document.getElementById('gallery-grid')) initGallery();
-    
-    // Luego intentar cargar datos de Firebase
-    if (isFirebaseConfigured) {
-        await updateCalendarWithData();
-    }
 });
 
 // --- SISTEMA DE AUDITORÍA ---
@@ -155,7 +167,7 @@ async function renderAdminLogs() {
     logs.forEach(log => { html += `<tr><td>${log.date}</td><td class="ua-text">${log.ua}</td></tr>`; });
     html += `</tbody></table>
                     </div>
-                    <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){ if(database) database.ref('/').remove(); location.reload();}" style="margin-top:20px">Resetear Todo</button>
+                    <button class="btn btn-primary" onclick="if(confirm('¿Seguro?')){ if(database) database.ref('/').remove(); localStorage.clear(); location.reload();}" style="margin-top:20px">Resetear Todo</button>
                 </div>`;
     logsContainer.innerHTML = html;
     document.getElementById('btn-back-home').onclick = () => toggleAdminView(false);
@@ -267,7 +279,7 @@ function renderCalendarStructure() {
 }
 
 async function updateCalendarWithData() {
-    if (!calendarGrid || !isFirebaseConfigured) return;
+    if (!calendarGrid) return;
     const allNotes = await fbGet('calendar-notes', {});
     Object.keys(allNotes).forEach(key => {
         const dayEl = document.getElementById(`day-${key.replace('note-', '')}`);
@@ -365,7 +377,6 @@ if (btnSaveNote) {
         btnSaveNote.innerText = "Guardar Detalle";
         btnSaveNote.disabled = false;
         noteModal.classList.add('hidden'); 
-        renderCalendarStructure();
         updateCalendarWithData();
         alert("¡Guardado correctamente! ❤️");
     };
